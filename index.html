@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Morning and Evening - Charles Spurgeon</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="app-container">
+        <header class="app-header">
+            <h1>Morning and Evening</h1>
+            <p class="subtitle">Daily Readings by Charles H. Spurgeon</p>
+        </header>
+
+        <div class="content-container">
+            <div class="devotion-page" id="devotionPage">
+                <div class="devotion-content" id="devotionContent">
+                    <h2 class="devotion-title" id="devotionTitle">Loading...</h2>
+                    <div class="devotion-text" id="devotionText">
+                        <p>Loading devotion...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <nav class="navigation">
+            <button class="nav-button" id="prevButton" aria-label="Previous page">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M15 18l-6-6 6-6"/>
+                </svg> 
+                Previous
+            </button>
+            <div class="page-info">
+                <span id="currentPageDisplay">1</span> / <span id="totalPagesDisplay">730</span>
+            </div>
+            <button class="nav-button" id="nextButton" aria-label="Next page">
+                Next
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M9 18l6-6-6-6"/>
+                </svg>
+            </button>
+        </nav>
+
+        <div class="progress-bar">
+            <div class="progress-fill" id="progressFill"></div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
+
