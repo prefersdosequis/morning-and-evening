@@ -28,17 +28,11 @@ class _MorningEveningAppState extends State<MorningEveningApp> {
   }
 
   Future<void> _loadTheme() async {
-    final isDark = await StorageService.getIsDarkMode();
+    // Always use the phone's current light/dark setting when the app opens
+    final systemDark = WidgetsBinding.instance.platformDispatcher.platformBrightness == Brightness.dark;
     setState(() {
-      _isDarkMode = isDark;
+      _isDarkMode = systemDark;
     });
-  }
-
-  void _toggleTheme() {
-    setState(() {
-      _isDarkMode = !_isDarkMode;
-    });
-    StorageService.saveIsDarkMode(_isDarkMode);
   }
 
   @override
@@ -51,7 +45,7 @@ class _MorningEveningAppState extends State<MorningEveningApp> {
           brightness: Brightness.light,
         ),
         useMaterial3: true,
-        textTheme: GoogleFonts.crimsonTextTextTheme(),
+        textTheme: GoogleFonts.interTextTheme(),
         scaffoldBackgroundColor: Colors.white,
       ),
       darkTheme: ThemeData(
@@ -60,13 +54,12 @@ class _MorningEveningAppState extends State<MorningEveningApp> {
           brightness: Brightness.dark,
         ),
         useMaterial3: true,
-        textTheme: GoogleFonts.crimsonTextTextTheme(ThemeData.dark().textTheme),
+        textTheme: GoogleFonts.interTextTheme(ThemeData.dark().textTheme),
         scaffoldBackgroundColor: Colors.black,
       ),
       themeMode: _isDarkMode ? ThemeMode.dark : ThemeMode.light,
       home: DevotionPage(
         isDarkMode: _isDarkMode,
-        onThemeToggle: _toggleTheme,
       ),
       debugShowCheckedModeBanner: false,
     );
@@ -75,12 +68,10 @@ class _MorningEveningAppState extends State<MorningEveningApp> {
 
 class DevotionPage extends StatefulWidget {
   final bool isDarkMode;
-  final VoidCallback onThemeToggle;
 
   const DevotionPage({
     super.key,
     required this.isDarkMode,
-    required this.onThemeToggle,
   });
 
   @override
@@ -126,15 +117,12 @@ class _DevotionPageState extends State<DevotionPage> {
     final now = DateTime.now();
     final dayOfYear = _getDayOfYear(now);
     final hour = now.hour;
-    final minute = now.minute;
-    
-    // Determine if it's morning (12:00 AM - 3:00 PM) or evening (3:01 PM - 11:59 PM)
+
+    // Morning: 2:00 AM – 1:59 PM. Evening: 2:00 PM – 1:59 AM.
     final String type;
-    if (hour < 15 || (hour == 15 && minute == 0)) {
-      // 12:00 AM (0:00) to 3:00 PM (15:00) inclusive
+    if (hour >= 2 && hour < 14) {
       type = 'morning';
     } else {
-      // 3:01 PM (15:01) to 11:59 PM (23:59)
       type = 'evening';
     }
     
@@ -148,21 +136,19 @@ class _DevotionPageState extends State<DevotionPage> {
   Future<void> _loadDevotions() async {
     try {
       final devotions = await DevotionService.loadDevotions();
-      
-      // Get the page for today's devotion based on time
       final todayPage = _getInitialPage(devotions);
-      
-      // Use today's page, but also check if there's a saved page preference
-      // For now, we'll prioritize today's devotion
-      final initialPage = todayPage;
-      
+      final savedPage = await StorageService.getCurrentPage();
+      // Use saved page if valid and same “day” as today, else open to today’s devotion
+      final initialPage = (savedPage >= 1 && savedPage <= devotions.length)
+          ? savedPage
+          : todayPage;
+
       setState(() {
         _devotions = devotions;
         _currentPage = initialPage.clamp(1, devotions.length);
         _isLoading = false;
       });
-      
-      // Save the current page
+
       StorageService.saveCurrentPage(_currentPage);
     } catch (e) {
       setState(() {
@@ -231,10 +217,10 @@ class _DevotionPageState extends State<DevotionPage> {
           const SizedBox(width: 8),
           Text(
             dateText,
-            style: GoogleFonts.crimsonText(
+            style: GoogleFonts.inter(
               color: Colors.white,
               fontSize: 18,
-              fontWeight: FontWeight.w600,
+              fontWeight: FontWeight.w700,
             ),
           ),
         ],
@@ -246,8 +232,10 @@ class _DevotionPageState extends State<DevotionPage> {
   Widget build(BuildContext context) {
     final backgroundColor = widget.isDarkMode ? Colors.black : Colors.white;
     final textColor = widget.isDarkMode ? Colors.white : Colors.black;
-    final headerColor = Colors.black; // Header stays black in both themes
-    final statusBarIconBrightness = widget.isDarkMode ? Brightness.light : Brightness.light;
+    // Header and status bar match theme: white bg + black text in light mode, black bg + white text in dark mode
+    final headerColor = widget.isDarkMode ? Colors.black : Colors.white;
+    final headerTextAndIconColor = widget.isDarkMode ? Colors.white : Colors.black;
+    final statusBarIconBrightness = widget.isDarkMode ? Brightness.light : Brightness.dark;
 
     if (_isLoading) {
       return Scaffold(
@@ -266,9 +254,10 @@ class _DevotionPageState extends State<DevotionPage> {
         body: Center(
           child: Text(
             'Error loading devotions',
-            style: GoogleFonts.crimsonText(
+            style: GoogleFonts.inter(
               color: textColor,
               fontSize: 18,
+              fontWeight: FontWeight.w700,
             ),
           ),
         ),
@@ -281,7 +270,10 @@ class _DevotionPageState extends State<DevotionPage> {
       value: SystemUiOverlayStyle(
         statusBarColor: headerColor,
         statusBarIconBrightness: statusBarIconBrightness,
-        statusBarBrightness: widget.isDarkMode ? Brightness.light : Brightness.dark,
+        statusBarBrightness: widget.isDarkMode ? Brightness.dark : Brightness.light,
+        systemNavigationBarColor: backgroundColor,
+        systemNavigationBarIconBrightness: statusBarIconBrightness,
+        systemNavigationBarDividerColor: Colors.transparent,
       ),
       child: Scaffold(
         backgroundColor: backgroundColor,
@@ -292,37 +284,21 @@ class _DevotionPageState extends State<DevotionPage> {
           right: false,
           child: Column(
           children: [
-            // Header with settings button
+            // Header
             Container(
               width: double.infinity,
               color: headerColor,
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              child: Stack(
-                alignment: Alignment.center,
-                children: [
-                  // Centered title
-                  Text(
-                    'Morning and Evening',
-                    style: GoogleFonts.crimsonText(
-                      color: Colors.white,
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                    ),
-                    textAlign: TextAlign.center,
+              child: Center(
+                child: Text(
+                  'Morning and Evening',
+                  style: GoogleFonts.inter(
+                    color: headerTextAndIconColor,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
                   ),
-                  // Theme button aligned to the right
-                  Align(
-                    alignment: Alignment.centerRight,
-                    child: IconButton(
-                      icon: Icon(
-                        widget.isDarkMode ? Icons.light_mode : Icons.dark_mode,
-                        color: Colors.white,
-                      ),
-                      onPressed: widget.onThemeToggle,
-                      tooltip: widget.isDarkMode ? 'Switch to Light Mode' : 'Switch to Dark Mode',
-                    ),
-                  ),
-                ],
+                  textAlign: TextAlign.center,
+                ),
               ),
             ),
 
@@ -365,17 +341,17 @@ class _DevotionPageState extends State<DevotionPage> {
                         _buildDateBadge(devotion),
                         const SizedBox(height: 12),
 
-                        // Content with King James style font
+                        // Devotion content
                         SizedBox(
                           width: double.infinity,
                           child: RichText(
                             textAlign: TextAlign.center,
                             text: TextSpan(
-                              style: GoogleFonts.crimsonText(
-                                fontSize: 18, // Increased from 13 to 16
-                                height: 1.6, // Increased from 1.2 to 1.6 for more spacing
+                              style: GoogleFonts.inter(
+                                fontSize: 18,
+                                height: 1.6,
                                 color: textColor,
-                                fontWeight: FontWeight.w700, // Bold for better readability
+                                fontWeight: FontWeight.w700,
                               ),
                               children: TextFormatter.formatContent(devotion.content, textColor: textColor),
                             ),

@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Security: Prevent all backups of app data
+    This ensures user data (if any) is not backed up to cloud services
+-->
+<full-backup-content>
+    <!-- Exclude everything from backup -->
+    <exclude domain="sharedpref" path="." />
+    <exclude domain="database" path="." />
+    <exclude domain="file" path="." />
+    <exclude domain="external" path="." />
+</full-backup-content>
+
+
+
+
+

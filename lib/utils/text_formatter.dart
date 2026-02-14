@@ -1,10 +1,11 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 class TextFormatter {
   static List<TextSpan> formatContent(String content, {Color textColor = Colors.black}) {
-    // DEBUG: Show first 200 chars of raw content
-    print('DEBUG: Raw content (first 200 chars): ${content.substring(0, content.length > 200 ? 200 : content.length)}');
+    // DEBUG: Show first 200 chars of raw content (no-op in release)
+    if (kDebugMode) print('DEBUG: Raw content (first 200 chars): ${content.substring(0, content.length > 200 ? 200 : content.length)}');
     
     // Remove reference numbers like [33], [34] before "Go to..." links
     content = content.replaceAll(
@@ -43,7 +44,7 @@ class TextFormatter {
         final reference = match.group(3) ?? '';
         final afterRef = match.group(4) ?? '';
         if (verseText.isEmpty || reference.isEmpty) return match.group(0) ?? '';
-        print('DEBUG: Replacing double quote with dash #$replacementCount: "$verseText"$period-$reference');
+        if (kDebugMode) print('DEBUG: Replacing double quote with dash #$replacementCount: "$verseText"$period-$reference');
         // Always put double newline after reference to separate it from body text
         // If afterRef is just whitespace or single newline, replace with double newline
         final cleanAfterRef = afterRef.trim();
@@ -61,7 +62,7 @@ class TextFormatter {
         final reference = match.group(3) ?? '';
         final afterRef = match.group(4) ?? '';
         if (verseText.isEmpty || reference.isEmpty) return match.group(0) ?? '';
-        print('DEBUG: Replacing single quote with dash #$replacementCount: \'$verseText\'$period-$reference');
+        if (kDebugMode) print('DEBUG: Replacing single quote with dash #$replacementCount: \'$verseText\'$period-$reference');
         // Always put double newline after reference to separate it from body text
         final replacement = "'$verseText$period'\n$reference\n\n";
         return replacement;
@@ -78,7 +79,7 @@ class TextFormatter {
         final reference = match.group(3) ?? '';
         final afterRef = match.group(4) ?? '';
         if (verseText.isEmpty || reference.isEmpty) return match.group(0) ?? '';
-        print('DEBUG: Replacing double quote with space #$replacementCount: "$verseText"$period $reference');
+        if (kDebugMode) print('DEBUG: Replacing double quote with space #$replacementCount: "$verseText"$period $reference');
         // Always put double newline after reference to separate it from body text
         final replacement = '"$verseText$period"\n$reference\n\n';
         return replacement;
@@ -94,16 +95,16 @@ class TextFormatter {
         final reference = match.group(3) ?? '';
         final afterRef = match.group(4) ?? '';
         if (verseText.isEmpty || reference.isEmpty) return match.group(0) ?? '';
-        print('DEBUG: Replacing single quote with space #$replacementCount: \'$verseText\'$period $reference');
+        if (kDebugMode) print('DEBUG: Replacing single quote with space #$replacementCount: \'$verseText\'$period $reference');
         // Always put double newline after reference to separate it from body text
         final replacement = "'$verseText$period'\n$reference\n\n";
         return replacement;
       },
     );
     
-    print('DEBUG: Total replacements made: $replacementCount');
+    if (kDebugMode) print('DEBUG: Total replacements made: $replacementCount');
     final previewLength = content.length > 200 ? 200 : content.length;
-    print('DEBUG: Content after replacement (first $previewLength chars): ${content.substring(0, previewLength)}');
+    if (kDebugMode) print('DEBUG: Content after replacement (first $previewLength chars): ${content.substring(0, previewLength)}');
     
     // IMMEDIATELY identify and extract verse-reference pairs before splitting
     // This ensures they're never mixed with body text
@@ -122,14 +123,14 @@ class TextFormatter {
     if (firstVerseRefMatch != null) {
       extractedVerse = '${firstVerseRefMatch.group(1)}${firstVerseRefMatch.group(2)}${firstVerseRefMatch.group(3)}';
       extractedReference = firstVerseRefMatch.group(4);
-      print('DEBUG: [EXTRACT] Found verse-reference pair (no period): verse="$extractedVerse", ref="$extractedReference"');
+      if (kDebugMode) print('DEBUG: [EXTRACT] Found verse-reference pair (no period): verse="$extractedVerse", ref="$extractedReference"');
     } else {
       // Try pattern with optional period
       firstVerseRefMatch = verseRefPairPattern.firstMatch(content);
       if (firstVerseRefMatch != null) {
         extractedVerse = '${firstVerseRefMatch.group(1)}${firstVerseRefMatch.group(2)}${firstVerseRefMatch.group(3)}';
         extractedReference = firstVerseRefMatch.group(4);
-        print('DEBUG: [EXTRACT] Found verse-reference pair (with period): verse="$extractedVerse", ref="$extractedReference"');
+        if (kDebugMode) print('DEBUG: [EXTRACT] Found verse-reference pair (with period): verse="$extractedVerse", ref="$extractedReference"');
       }
     }
     
@@ -146,7 +147,7 @@ class TextFormatter {
       } else {
         contentWithoutVerseRef = content.replaceFirst(verseRefText, '');
       }
-      print('DEBUG: [EXTRACT] Removed verse-reference pair from content, remaining length: ${contentWithoutVerseRef.length}');
+      if (kDebugMode) print('DEBUG: [EXTRACT] Removed verse-reference pair from content, remaining length: ${contentWithoutVerseRef.length}');
     }
     
     // Split by double newlines for paragraphs
@@ -219,7 +220,7 @@ class TextFormatter {
           // Check if paragraph is exactly the reference
           if (trimmed == initialRefForFiltering || refPattern.hasMatch(trimmed)) {
             removedCount++;
-            print('DEBUG: [PRE-FILTER] Removing duplicate reference paragraph #$removedCount after verse-ref pair: $trimmed');
+            if (kDebugMode) print('DEBUG: [PRE-FILTER] Removing duplicate reference paragraph #$removedCount after verse-ref pair: $trimmed');
             return false;
           }
           // Also check if paragraph contains the reference as a standalone line
@@ -230,7 +231,7 @@ class TextFormatter {
               // If it's a single-line paragraph that's just the reference, remove it
               if (lines.length == 1) {
                 removedCount++;
-                print('DEBUG: [PRE-FILTER] Removing single-line reference paragraph #$removedCount after verse-ref pair: $trimmed');
+                if (kDebugMode) print('DEBUG: [PRE-FILTER] Removing single-line reference paragraph #$removedCount after verse-ref pair: $trimmed');
                 return false;
               }
             }
@@ -240,7 +241,7 @@ class TextFormatter {
         return true;
       }).toList();
       
-      print('DEBUG: [PRE-FILTER] Removed $removedCount duplicate reference paragraphs');
+      if (kDebugMode) print('DEBUG: [PRE-FILTER] Removed $removedCount duplicate reference paragraphs');
     }
     
     // First pass: Combine consecutive poem lines (short lines, often starting with quote) into single paragraphs
@@ -292,7 +293,7 @@ class TextFormatter {
       final hasVerseRef = verseRefMatchNoPeriod != null || verseRefMatchWithPeriod != null;
       
       if (hasVerseRef) {
-        print('DEBUG: [COMBINING PHASE] Found verse-reference pair: $para');
+        if (kDebugMode) print('DEBUG: [COMBINING PHASE] Found verse-reference pair: $para');
         // Keep verse-reference pairs intact - don't collapse newlines
         // Add to combined paragraphs as-is
         combinedParagraphs.add(para);
@@ -416,9 +417,9 @@ class TextFormatter {
       // Output verse on its own line (scripture verse)
       spans.add(TextSpan(
         text: '$extractedVerse\n',
-        style: GoogleFonts.crimsonText(
+        style: GoogleFonts.inter(
           fontStyle: FontStyle.italic,
-          fontSize: 18,
+          fontSize: 16,
           color: textColor,
           fontWeight: FontWeight.w700,
         ),
@@ -426,14 +427,14 @@ class TextFormatter {
       // Output reference on the next line (scripture reference)
       spans.add(TextSpan(
         text: '$extractedReference\n\n',
-        style: GoogleFonts.crimsonText(
+        style: GoogleFonts.inter(
           fontStyle: FontStyle.italic,
-          fontSize: 18,
+          fontSize: 16,
           color: textColor,
           fontWeight: FontWeight.w700,
         ),
       ));
-      print('DEBUG: [OUTPUT] Output extracted verse-reference pair first: verse="$extractedVerse", ref="$extractedReference"');
+      if (kDebugMode) print('DEBUG: [OUTPUT] Output extracted verse-reference pair first: verse="$extractedVerse", ref="$extractedReference"');
     }
     
     // FIRST PASS: Identify the initial reference from the verse-reference pair
@@ -510,13 +511,13 @@ class TextFormatter {
         
         // Check if paragraph is exactly the reference
         if (trimmedPara == initialReference) {
-          print('DEBUG: [ULTRA-AGGRESSIVE] Skipping duplicate reference paragraph: $para');
+          if (kDebugMode) print('DEBUG: [ULTRA-AGGRESSIVE] Skipping duplicate reference paragraph: $para');
           continue;
         }
         
         // Check if paragraph matches reference pattern (with optional whitespace)
         if (RegExp('^\\s*' + escapedRef + r'\\s*$', caseSensitive: false).hasMatch(trimmedPara)) {
-          print('DEBUG: [ULTRA-AGGRESSIVE] Skipping paragraph matching reference pattern: $para');
+          if (kDebugMode) print('DEBUG: [ULTRA-AGGRESSIVE] Skipping paragraph matching reference pattern: $para');
           continue;
         }
         
@@ -526,7 +527,7 @@ class TextFormatter {
           // Remove the reference from the start and keep the rest as body text
           para = trimmedPara.replaceFirst(RegExp('^\\s*' + escapedRef + r'\\s+', caseSensitive: false), '').trim();
           if (para.isEmpty) {
-            print('DEBUG: [ULTRA-AGGRESSIVE] Paragraph became empty after removing reference, skipping: $trimmedPara');
+            if (kDebugMode) print('DEBUG: [ULTRA-AGGRESSIVE] Paragraph became empty after removing reference, skipping: $trimmedPara');
             continue;
           }
           // Continue processing with the cleaned paragraph
@@ -540,13 +541,13 @@ class TextFormatter {
           final trimmedLine = line.trim();
           if (trimmedLine == initialReference) {
             foundRefLine = true;
-            print('DEBUG: [ULTRA-AGGRESSIVE] Removing reference line from paragraph: $trimmedLine');
+            if (kDebugMode) print('DEBUG: [ULTRA-AGGRESSIVE] Removing reference line from paragraph: $trimmedLine');
             continue; // Skip this line
           }
           // Also check if line matches reference pattern
           if (RegExp('^\\s*' + escapedRef + r'\\s*$', caseSensitive: false).hasMatch(trimmedLine)) {
             foundRefLine = true;
-            print('DEBUG: [ULTRA-AGGRESSIVE] Removing reference line (pattern match): $trimmedLine');
+            if (kDebugMode) print('DEBUG: [ULTRA-AGGRESSIVE] Removing reference line (pattern match): $trimmedLine');
             continue; // Skip this line
           }
           filteredLines.add(line);
@@ -554,7 +555,7 @@ class TextFormatter {
         if (foundRefLine) {
           para = filteredLines.join('\n').trim();
           if (para.isEmpty) {
-            print('DEBUG: [ULTRA-AGGRESSIVE] Paragraph became empty after removing reference lines, skipping');
+            if (kDebugMode) print('DEBUG: [ULTRA-AGGRESSIVE] Paragraph became empty after removing reference lines, skipping');
             continue;
           }
         }
@@ -577,7 +578,7 @@ class TextFormatter {
         if (noPeriodMatch != null) {
           hasVerseRef = true;
           verseRefMatch = noPeriodMatch;
-          print('DEBUG: Found verse-reference pair (no period pattern): $para');
+          if (kDebugMode) print('DEBUG: Found verse-reference pair (no period pattern): $para');
         }
       }
       
@@ -597,13 +598,13 @@ class TextFormatter {
             para = '$quoteChar$verseText$period$quoteChar\n$reference$restOfPara';
             hasVerseRef = true;
             verseRefMatch = verseRefPatternRegex.firstMatch(para);
-            print('DEBUG: Found verse-reference on same line, split it: $para');
+            if (kDebugMode) print('DEBUG: Found verse-reference on same line, split it: $para');
           }
         }
       }
       
       if (hasVerseRef && verseRefMatch != null) {
-        print('DEBUG: Detected verse-reference pair: verse="${verseRefMatch.group(2)}", ref="${verseRefMatch.group(4)}"');
+        if (kDebugMode) print('DEBUG: Detected verse-reference pair: verse="${verseRefMatch.group(2)}", ref="${verseRefMatch.group(4)}"');
       }
       
       // Check if it's a quoted scripture verse
@@ -636,21 +637,21 @@ class TextFormatter {
         final trimmedPara = para.trim();
         // Check if the entire paragraph is just the reference
         if (trimmedPara == initialReference) {
-          print('DEBUG: Skipping duplicate reference paragraph: $para');
+          if (kDebugMode) print('DEBUG: Skipping duplicate reference paragraph: $para');
           continue;
         }
         // Check if any line in the paragraph is just the reference
         final lines = para.split('\n');
         final isJustReference = lines.length == 1 && lines[0].trim() == initialReference;
         if (isJustReference) {
-          print('DEBUG: Skipping paragraph that is just the reference: $para');
+          if (kDebugMode) print('DEBUG: Skipping paragraph that is just the reference: $para');
           continue;
         }
         // Check if the paragraph starts with the reference (possibly with whitespace)
         final escapedRef = initialReference.replaceAllMapped(RegExp(r'[.*+?^${}()|[\]\\]'), (m) => '\\${m[0]}');
         final startsWithRef = RegExp('^\\s*' + escapedRef + r'\\s*$', caseSensitive: false).hasMatch(trimmedPara);
         if (startsWithRef) {
-          print('DEBUG: Skipping paragraph that starts with reference: $para');
+          if (kDebugMode) print('DEBUG: Skipping paragraph that starts with reference: $para');
           continue;
         }
       }
@@ -686,9 +687,9 @@ class TextFormatter {
           // Output verse on its own line (scripture verse)
           spans.add(TextSpan(
             text: '$verse\n',
-            style: GoogleFonts.crimsonText(
+            style: GoogleFonts.inter(
               fontStyle: FontStyle.italic,
-              fontSize: 18,
+              fontSize: 16,
               color: textColor,
               fontWeight: FontWeight.w700,
             ),
@@ -696,9 +697,9 @@ class TextFormatter {
           // Output reference on the next line (scripture reference) - ONLY ONCE
           spans.add(TextSpan(
             text: '$reference\n\n',
-            style: GoogleFonts.crimsonText(
+            style: GoogleFonts.inter(
               fontStyle: FontStyle.italic,
-              fontSize: 18,
+              fontSize: 16,
               color: textColor,
               fontWeight: FontWeight.w700,
             ),
@@ -716,22 +717,22 @@ class TextFormatter {
           }
           spans.add(TextSpan(
             text: '$para\n\n',
-            style: GoogleFonts.crimsonText(
+            style: GoogleFonts.inter(
               fontStyle: FontStyle.italic,
-              fontSize: 18,
+              fontSize: 16,
               color: textColor,
               fontWeight: FontWeight.w700,
             ),
           ));
         } else {
           // This is a duplicate scripture reference (we've already seen the initial one), skip it
-          print('DEBUG: Skipping duplicate scripture reference: $para');
+          if (kDebugMode) print('DEBUG: Skipping duplicate scripture reference: $para');
           continue;
         }
       } else if (hasSeenInitialVerseRef && initialReference != null && isVerseRef) {
         // After we've seen the initial verse-reference, check if this paragraph is just a duplicate reference
         // If this is a standalone reference paragraph, skip it
-        print('DEBUG: Skipping duplicate reference that appears as separate paragraph: $para');
+        if (kDebugMode) print('DEBUG: Skipping duplicate reference that appears as separate paragraph: $para');
         continue;
       } else if (isPoem) {
         // Collect poems separately (they appear at the bottom)
@@ -756,12 +757,12 @@ class TextFormatter {
             var processedLine = line.trim();
             // Skip lines that are exactly the reference
             if (processedLine == initialReference) {
-              print('DEBUG: Removing duplicate reference line from body: $processedLine');
+              if (kDebugMode) print('DEBUG: Removing duplicate reference line from body: $processedLine');
               continue;
             }
             // Skip lines that are just the reference repeated (with or without spaces)
             if (RegExp('^\\s*' + escapedRef + r'(?:\s+' + escapedRef + r')*\\s*$', caseSensitive: false).hasMatch(processedLine)) {
-              print('DEBUG: Removing duplicate reference line (repeated) from body: $processedLine');
+              if (kDebugMode) print('DEBUG: Removing duplicate reference line (repeated) from body: $processedLine');
               continue;
             }
             // Also remove the reference if it appears at the start of a line (even if there's more text)
@@ -769,7 +770,7 @@ class TextFormatter {
             if (lineStartsWithRef.hasMatch(processedLine)) {
               processedLine = processedLine.replaceFirst(lineStartsWithRef, '').trim();
               if (processedLine.isEmpty) {
-                print('DEBUG: Removing line that starts with reference from body: $line');
+                if (kDebugMode) print('DEBUG: Removing line that starts with reference from body: $line');
                 continue;
               }
             }
@@ -790,12 +791,12 @@ class TextFormatter {
       }
     }
     
-    // Output all body paragraphs as one continuous paragraph
+    // Output all body paragraphs (Roboto 18sp w700)
     if (bodyParagraphs.isNotEmpty) {
       final combinedBody = bodyParagraphs.join(' ').trim();
       spans.add(TextSpan(
         text: '$combinedBody\n\n',
-        style: GoogleFonts.crimsonText(
+        style: GoogleFonts.inter(
           fontSize: 18,
           color: textColor,
           fontWeight: FontWeight.w700,
@@ -803,7 +804,7 @@ class TextFormatter {
       ));
     }
     
-    // Output poems at the end (separate paragraphs)
+    // Output poems at the end (Inter 18sp w700)
     for (final poemPara in poemParagraphs) {
       final paraLines = poemPara.split('\n');
       final nonEmptyParaLines = paraLines.where((line) => line.trim().isNotEmpty).toList();
@@ -811,7 +812,7 @@ class TextFormatter {
         final line = nonEmptyParaLines[i].trim();
         spans.add(TextSpan(
           text: '$line${i < nonEmptyParaLines.length - 1 ? '\n' : '\n\n'}',
-          style: GoogleFonts.crimsonText(
+          style: GoogleFonts.inter(
             fontSize: 18,
             color: textColor,
             fontWeight: FontWeight.w700,
