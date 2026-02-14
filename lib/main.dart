@@ -137,11 +137,8 @@ class _DevotionPageState extends State<DevotionPage> {
     try {
       final devotions = await DevotionService.loadDevotions();
       final todayPage = _getInitialPage(devotions);
-      final savedPage = await StorageService.getCurrentPage();
-      // Use saved page if valid and same “day” as today, else open to today’s devotion
-      final initialPage = (savedPage >= 1 && savedPage <= devotions.length)
-          ? savedPage
-          : todayPage;
+      // Always open to today's devotion (current date + morning/evening time)
+      final initialPage = todayPage;
 
       setState(() {
         _devotions = devotions;

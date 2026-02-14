@@ -91,6 +91,6 @@ flutter:
 flutter_launcher_icons:
   android: true
   ios: false
-  image_path: "/RAID_Storage/AI Coding/Morning-and-Evening/color_morning_and_evening.png"
+  image_path: "color_morning_and_evening.png"
   adaptive_icon_background: "#000000"  # Black background to match your app theme
-  adaptive_icon_foreground: "/RAID_Storage/AI Coding/Morning-and-Evening/color_morning_and_evening.png"
+  adaptive_icon_foreground: "color_morning_and_evening.png"
