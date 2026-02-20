@@ -1,8 +1,9 @@
 pluginManagement {
     def flutterSdkPath = {
         def properties = new Properties()
-        file("local.properties").withInputStream { properties.load(it) }
-        def flutterSdkPath = properties.getProperty("flutter.sdk")
+        file("local.properties").with+e
+        qef
+        E'ATs.getProperty("flutter.sdk")
         assert flutterSdkPath != null, "flutter.sdk not set in local.properties"
         return flutterSdkPath
     }()
@@ -19,7 +20,9 @@ pluginManagement {
 plugins {
     id "dev.flutter.flutter-plugin-loader" version "1.0.0"
     id "com.android.application" version "8.1.0" apply false
+    id "com.android.asset-pack" version "8.1.0" apply false  // Play Asset Delivery; used by :asset-packs:audio_assets
     id "org.jetbrains.kotlin.android" version "1.8.22" apply false
 }
 
 include ":app"
+include ":asset-packs:audio_assets"

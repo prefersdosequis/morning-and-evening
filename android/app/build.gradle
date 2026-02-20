@@ -14,8 +14,11 @@ if (keystorePropertiesFile.exists()) {
 
 android {
     namespace = "com.spurgeon.morning_evening_app"
-    compileSdk = flutter.compileSdkVersion
+    // Media3 1.8.x requires compileSdk 35+ (AAR metadata).
+    compileSdk = 35
     ndkVersion = flutter.ndkVersion
+    // Declare asset pack so the app bundle (AAB) includes it; Play delivers it at install.
+    assetPacks = [":asset-packs:audio_assets"]
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_1_8
@@ -32,7 +35,7 @@ android {
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = flutter.minSdkVersion
-        targetSdk = flutter.targetSdkVersion
+        targetSdk = 35
         versionCode = flutter.versionCode
         versionName = flutter.versionName
     }
@@ -66,6 +69,11 @@ android {
             )
         }
     }
+}
+
+dependencies {
+    // Play Core / Asset Delivery (Kotlin): resolve install-time pack path at runtime.
+    implementation "com.google.android.play:asset-delivery-ktx:2.2.0"
 }
 
 flutter {
