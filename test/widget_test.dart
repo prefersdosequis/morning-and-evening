@@ -6,6 +6,7 @@
 // tree, read text, and verify that the values of widget properties are correct.
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter/material.dart';
 
 import 'package:morning_evening_app/main.dart';
 
@@ -14,7 +15,7 @@ void main() {
     // Build our app and trigger a frame.
     await tester.pumpWidget(const MorningEveningApp());
 
-    // Verify that the app title is displayed
-    expect(find.text('Morning and Evening'), findsOneWidget);
+    // The app loads devotions asynchronously; on the first frame it should show a loading state.
+    expect(find.byType(CircularProgressIndicator), findsOneWidget);
   });
 }

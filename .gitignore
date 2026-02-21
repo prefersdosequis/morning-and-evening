@@ -42,6 +42,16 @@ app.*.map.json
 /android/app/profile
 /android/app/release
 android/key.properties
+android/local.properties
+
+# Sensitive / local-only Android artifacts
+**/*.jks
+**/*.keystore
+**/*.p12
+**/*.pfx
+**/*.hprof
+android/bundletool-all.jar
+android/devotions.json
 
 # Asset pack audio (large binaries; deliver via CI or separate process)
 android/asset-packs/audio_assets/src/main/assets/**/*.mp3

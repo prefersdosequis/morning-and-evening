@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'dart:async';
 import 'dart:io';
 import 'package:audioplayers/audioplayers.dart';
 import 'models/devotion.dart';
@@ -144,6 +145,18 @@ class _DevotionPageState extends State<DevotionPage> {
     _audioPlayer.pause();
   }
 
+  Future<void> _stopAudioForDevotionChange() async {
+    try {
+      await _audioPlayer.stop();
+    } catch (e) {
+      debugPrint('MEAudio: stop failed: $e');
+    } finally {
+      // Ensure next play loads the newly selected devotion's audio.
+      _loadedAudioKey = null;
+      _loadedAudioPath = null;
+    }
+  }
+
   /// Play audio for the current devotion (asset pack: morning/NNN.mp3 or evening/NNN.mp3).
   /// Resumes from current position if this devotion is already loaded and paused.
   Future<void> _playCurrentDevotionAudio() async {
@@ -283,8 +296,16 @@ class _DevotionPageState extends State<DevotionPage> {
 
   void _goToPage(int page) {
     if (page < 1 || page > _devotions.length) return;
-    // Next play should load this devotion's audio, not resume the previous one
-    _loadedAudioKey = null;
+    // If the user navigates to a different devotion, stop whatever audio is currently playing.
+    // The next tap of Play should play the newly selected devotion's audio.
+    if (page != _currentPage && _audioPlayer.state != PlayerState.stopped) {
+      unawaited(_stopAudioForDevotionChange());
+    } else {
+      // Even if already stopped, make sure we don't resume a previous devotion by accident.
+      _loadedAudioKey = null;
+      _loadedAudioPath = null;
+    }
+
     setState(() {
       _currentPage = page;
     });

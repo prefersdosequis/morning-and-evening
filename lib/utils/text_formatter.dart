@@ -3,6 +3,83 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 class TextFormatter {
+  static String _normalizeReferenceDisplay(String reference) {
+    // Prefer "2:16,17" over "2:16, 17" for display.
+    return reference.replaceAll(RegExp(r',\s+'), ',');
+  }
+
+  static String _ordinal(int n) {
+    final mod100 = n % 100;
+    if (mod100 >= 11 && mod100 <= 13) return '${n}th';
+    switch (n % 10) {
+      case 1:
+        return '${n}st';
+      case 2:
+        return '${n}nd';
+      case 3:
+        return '${n}rd';
+      default:
+        return '${n}th';
+    }
+  }
+
+  /// Converts a Bible reference like "2 Corinthians 7:6" into a screen-reader-friendly
+  /// spoken form like "2nd Corinthians 7 verse 6".
+  ///
+  /// Keeps the on-screen text unchanged; this is intended for semantics only.
+  static String? bibleReferenceSemanticsLabel(String reference) {
+    var r = reference.trim().replaceAll(RegExp(r'\s+'), ' ');
+    if (r.isEmpty) return null;
+
+    // Strip common trailing punctuation that sometimes leaks into references.
+    r = r.replaceAll(RegExp(r'[\)\]\.,;]+$'), '');
+
+    final parts = r.split(' ');
+    if (parts.length < 2) return null;
+
+    final last = parts.last;
+    final rest = parts.sublist(0, parts.length - 1);
+
+    final leadingNumber = int.tryParse(rest.isNotEmpty ? rest.first : '');
+    final hasLeadingOrdinalBookNumber = leadingNumber != null && leadingNumber >= 1 && leadingNumber <= 3;
+
+    final bookName = hasLeadingOrdinalBookNumber ? rest.sublist(1).join(' ') : rest.join(' ');
+    final bookSpoken = hasLeadingOrdinalBookNumber ? '${_ordinal(leadingNumber!)} $bookName' : bookName;
+
+    // Chapter:Verse form (allow hyphen/en-dash ranges, or comma-separated verses).
+    final cvMatch = RegExp(r'^(\d+):(\d+(?:[,\u2013\u2014-]\d+)*)$').firstMatch(last);
+    if (cvMatch != null) {
+      final chapter = cvMatch.group(1)!;
+      final versesRaw = cvMatch.group(2)!;
+
+      // Range like 6-7 / 6–7.
+      final rangeMatch = RegExp(r'^(\d+)[\u2013\u2014-](\d+)$').firstMatch(versesRaw);
+      if (rangeMatch != null) {
+        final start = rangeMatch.group(1)!;
+        final end = rangeMatch.group(2)!;
+        return '$bookSpoken $chapter verses $start through $end';
+      }
+
+      // Comma-separated verses like 6,7,8.
+      if (versesRaw.contains(',')) {
+        final verseNums = versesRaw.split(',').map((v) => v.trim()).where((v) => v.isNotEmpty).toList();
+        if (verseNums.isNotEmpty) {
+          return '$bookSpoken $chapter verses ${verseNums.join(', ')}';
+        }
+      }
+
+      return '$bookSpoken $chapter verse $versesRaw';
+    }
+
+    // Chapter-only form like "Jude 1".
+    final chapterOnly = RegExp(r'^\d+$').hasMatch(last) ? last : null;
+    if (chapterOnly != null) {
+      return '$bookSpoken chapter $chapterOnly';
+    }
+
+    return null;
+  }
+
   static List<TextSpan> formatContent(String content, {Color textColor = Colors.black}) {
     // DEBUG: Show first 200 chars of raw content (no-op in release)
     if (kDebugMode) print('DEBUG: Raw content (first 200 chars): ${content.substring(0, content.length > 200 ? 200 : content.length)}');
@@ -21,7 +98,11 @@ class TextFormatter {
     // Handle both double and single quotes separately
     // Pattern for verse reference: can start with number (1 Chronicles) or word (John), may have "of" (Song of Solomon)
     // Full pattern: (optional number + space) + book name (may include "of Book") + space + chapter:verse
-    final verseRefPattern = r'((?:\d+\s+)?[A-Z][a-zA-Z]+(?:\s+of\s+[A-Z][a-zA-Z]+)?\s+\d+:\d+)';
+    // Allow comma-separated verses and ranges:
+    // - 1:12,13 or 1:12, 13
+    // - 1:12-13 / 1:12–13 (with optional spaces around separators)
+    final verseRefPattern =
+        r'((?:\d+\s+)?[A-Z][a-zA-Z]+(?:\s+of\s+[A-Z][a-zA-Z]+)?\s+(?:\d+:\d+(?:\s*[,\u2013\u2014-]\s*\d+)*|\d+))';
     
     // Pattern 1: With dash - "text."-Reference or "text"-Reference
     final doubleQuotePatternDash = RegExp(r'"([^"]+?)"(\.?)-(' + verseRefPattern + r')(\s|\n\n|\n|$)');
@@ -108,10 +189,20 @@ class TextFormatter {
     
     // IMMEDIATELY identify and extract verse-reference pairs before splitting
     // This ensures they're never mixed with body text
-    final verseRefPatternForExtract = r'((?:\d+\s+)?[A-Z][a-zA-Z]+(?:\s+of\s+[A-Z][a-zA-Z]+)?\s+\d+:\d+)';
+    final verseRefPatternForExtract =
+        r'((?:\d+\s+)?[A-Z][a-zA-Z]+(?:\s+of\s+[A-Z][a-zA-Z]+)?\s+(?:\d+:\d+(?:\s*[,\u2013\u2014-]\s*\d+)*|\d+))';
     // Don't use ^ and $ - match anywhere in content, but ensure it's at start of a line
-    final verseRefPairPattern = RegExp('(["\'])(.+?)(["\']\\.?)\\n' + verseRefPatternForExtract + r'(?=\n\n|\n|$)', multiLine: true);
-    final verseRefPairPatternNoPeriod = RegExp('(["\'])(.+?)(["\'])\\n' + verseRefPatternForExtract + r'(?=\n\n|\n|$)', multiLine: true);
+    // NOTE:
+    // - scripture quotes can span multiple lines; use [\s\S] so matches cross newlines
+    // - some inputs have a blank line between the quote and the reference, so allow \n+
+    final verseRefPairPattern = RegExp(
+      '(["\'])([\\s\\S]+?)(["\']\\.?)\\n+' + verseRefPatternForExtract + r'(?=\n\n|\n|$)',
+      multiLine: true,
+    );
+    final verseRefPairPatternNoPeriod = RegExp(
+      '(["\'])([\\s\\S]+?)(["\'])\\n+' + verseRefPatternForExtract + r'(?=\n\n|\n|$)',
+      multiLine: true,
+    );
     
     // Find the first verse-reference pair in the content
     Match? firstVerseRefMatch;
@@ -121,14 +212,23 @@ class TextFormatter {
     // Try pattern without period first (most common after our replacement)
     firstVerseRefMatch = verseRefPairPatternNoPeriod.firstMatch(content);
     if (firstVerseRefMatch != null) {
-      extractedVerse = '${firstVerseRefMatch.group(1)}${firstVerseRefMatch.group(2)}${firstVerseRefMatch.group(3)}';
+      final quoteOpen = firstVerseRefMatch.group(1) ?? '"';
+      final verseBodyRaw = firstVerseRefMatch.group(2) ?? '';
+      final quoteClose = firstVerseRefMatch.group(3) ?? '"';
+      // Normalize whitespace inside the verse so we don't show random hard-wrapped/blank lines.
+      final verseBody = verseBodyRaw.replaceAll(RegExp(r'\s+'), ' ').trim();
+      extractedVerse = '$quoteOpen$verseBody$quoteClose';
       extractedReference = firstVerseRefMatch.group(4);
       if (kDebugMode) print('DEBUG: [EXTRACT] Found verse-reference pair (no period): verse="$extractedVerse", ref="$extractedReference"');
     } else {
       // Try pattern with optional period
       firstVerseRefMatch = verseRefPairPattern.firstMatch(content);
       if (firstVerseRefMatch != null) {
-        extractedVerse = '${firstVerseRefMatch.group(1)}${firstVerseRefMatch.group(2)}${firstVerseRefMatch.group(3)}';
+        final quoteOpen = firstVerseRefMatch.group(1) ?? '"';
+        final verseBodyRaw = firstVerseRefMatch.group(2) ?? '';
+        final quoteClose = firstVerseRefMatch.group(3) ?? '"';
+        final verseBody = verseBodyRaw.replaceAll(RegExp(r'\s+'), ' ').trim();
+        extractedVerse = '$quoteOpen$verseBody$quoteClose';
         extractedReference = firstVerseRefMatch.group(4);
         if (kDebugMode) print('DEBUG: [EXTRACT] Found verse-reference pair (with period): verse="$extractedVerse", ref="$extractedReference"');
       }
@@ -158,12 +258,13 @@ class TextFormatter {
     
     // PRE-FILTER: Identify the initial scripture reference before processing
     String? initialRefForFiltering;
-    final verseRefPatternForFilter = r'((?:\d+\s+)?[A-Z][a-zA-Z]+(?:\s+of\s+[A-Z][a-zA-Z]+)?\s+\d+:\d+)';
+    final verseRefPatternForFilter =
+        r'((?:\d+\s+)?[A-Z][a-zA-Z]+(?:\s+of\s+[A-Z][a-zA-Z]+)?\s+(?:\d+:\d+(?:\s*[,\u2013\u2014-]\s*\d+)*|\d+))';
     bool foundInitialRef = false;
     
     for (final para in paragraphs) {
       // Check for verse-reference pair pattern (verse\nreference)
-      final verseRefPairPattern = RegExp('^(["\'])(.+?)(["\'])\\n' + verseRefPatternForFilter + r'\$');
+      final verseRefPairPattern = RegExp('^(["\'])([\\s\\S]+?)(["\'])\\n+' + verseRefPatternForFilter + r'\$');
       final pairMatch = verseRefPairPattern.firstMatch(para);
       if (pairMatch != null) {
         final refMatch = RegExp(verseRefPatternForFilter).firstMatch(para);
@@ -175,7 +276,7 @@ class TextFormatter {
       }
       
       // Check for verse-reference on same line (with dash or space)
-      final sameLinePattern = RegExp('^(["\'])(.+?)(["\'])(\\.?)[\\s\\-]+' + verseRefPatternForFilter);
+      final sameLinePattern = RegExp('^(["\'])([\\s\\S]+?)(["\'])(\\.?)[\\s\\-]+' + verseRefPatternForFilter);
       final sameLineMatch = sameLinePattern.firstMatch(para);
       if (sameLineMatch != null) {
         final refMatch = RegExp(verseRefPatternForFilter).firstMatch(para);
@@ -414,6 +515,7 @@ class TextFormatter {
     if (extractedVerse != null && extractedReference != null) {
       hasSeenInitialVerseRef = true;
       initialReference = extractedReference;
+      final displayReference = _normalizeReferenceDisplay(extractedReference);
       // Output verse on its own line (scripture verse)
       spans.add(TextSpan(
         text: '$extractedVerse\n',
@@ -426,7 +528,8 @@ class TextFormatter {
       ));
       // Output reference on the next line (scripture reference)
       spans.add(TextSpan(
-        text: '$extractedReference\n\n',
+        text: '$displayReference\n\n',
+        semanticsLabel: bibleReferenceSemanticsLabel(displayReference) ?? displayReference,
         style: GoogleFonts.inter(
           fontStyle: FontStyle.italic,
           fontSize: 16,
@@ -443,7 +546,8 @@ class TextFormatter {
       if (para.isEmpty) continue;
       
       // Check if this paragraph contains a verse-reference pair
-      final verseRefPattern2 = r'((?:\d+\s+)?[A-Z][a-zA-Z]+(?:\s+of\s+[A-Z][a-zA-Z]+)?\s+\d+:\d+)';
+      final verseRefPattern2 =
+          r'((?:\d+\s+)?[A-Z][a-zA-Z]+(?:\s+of\s+[A-Z][a-zA-Z]+)?\s+(?:\d+:\d+(?:\s*[,\u2013\u2014-]\s*\d+)*|\d+))';
       // Pattern 1: verse with optional period before quote, then newline, then reference
       final verseRefPatternRegex = RegExp('^(["\'])(.+?)(["\']\\.?)\\n' + verseRefPattern2 + r'\$');
       Match? verseRefMatch = verseRefPatternRegex.firstMatch(para);
@@ -479,10 +583,12 @@ class TextFormatter {
       }
       
       // Also check if it's a standalone reference
-      final simpleVerseRef = RegExp(r'^[A-Z][a-zA-Z]+\s+\d+:\d+$');
-      final multiWordVerseRef = RegExp(r'^[A-Z][a-zA-Z\s]+(\s+of\s+[A-Z][a-zA-Z]+)?\s+\d+:\d+$');
-      final numberedBookPattern = RegExp(r'^\d+\s+[A-Z][a-zA-Z\s]+\s+\d+:\d+$');
-      final numberedWithOf = RegExp(r'^\d+\s+[A-Z][a-zA-Z\s]+(\s+of\s+[A-Z][a-zA-Z]+)?\s+\d+:\d+$');
+      final simpleVerseRef = RegExp(r'^[A-Z][a-zA-Z]+\s+(?:\d+:\d+(?:\s*[,\u2013\u2014-]\s*\d+)*|\d+)$');
+      final multiWordVerseRef =
+          RegExp(r'^[A-Z][a-zA-Z\s]+(\s+of\s+[A-Z][a-zA-Z]+)?\s+(?:\d+:\d+(?:\s*[,\u2013\u2014-]\s*\d+)*|\d+)$');
+      final numberedBookPattern = RegExp(r'^\d+\s+[A-Z][a-zA-Z\s]+\s+(?:\d+:\d+(?:\s*[,\u2013\u2014-]\s*\d+)*|\d+)$');
+      final numberedWithOf =
+          RegExp(r'^\d+\s+[A-Z][a-zA-Z\s]+(\s+of\s+[A-Z][a-zA-Z]+)?\s+(?:\d+:\d+(?:\s*[,\u2013\u2014-]\s*\d+)*|\d+)$');
       final isVerseRef = simpleVerseRef.hasMatch(para) ||
           multiWordVerseRef.hasMatch(para) ||
           numberedBookPattern.hasMatch(para) ||
@@ -567,13 +673,13 @@ class TextFormatter {
       
       // Pattern 1: verse with optional period, then newline, then reference (most common after formatting)
       // This matches: "verse".\nreference OR "verse"\nreference
-      final verseRefPatternRegex = RegExp('^(["\'])(.+?)(["\']\\.?)\\n' + verseRefPattern2 + r'\$');
+      final verseRefPatternRegex = RegExp('^(["\'])([\\s\\S]+?)(["\']\\.?)\\n+' + verseRefPattern2 + r'\$');
       Match? verseRefMatch = verseRefPatternRegex.firstMatch(para);
       bool hasVerseRef = verseRefMatch != null;
       
       // Pattern 1b: Check without period FIRST (handles "verse"\nreference - most common case)
       if (!hasVerseRef) {
-        final verseRefPatternNoPeriod = RegExp('^(["\'])(.+?)(["\'])\\n' + verseRefPattern2 + r'\$');
+        final verseRefPatternNoPeriod = RegExp('^(["\'])([\\s\\S]+?)(["\'])\\n+' + verseRefPattern2 + r'\$');
         final noPeriodMatch = verseRefPatternNoPeriod.firstMatch(para);
         if (noPeriodMatch != null) {
           hasVerseRef = true;
@@ -585,7 +691,7 @@ class TextFormatter {
       // Pattern 2: verse-reference on same line (with dash or space) - split them
       // This handles cases that weren't formatted yet
       if (!hasVerseRef) {
-        final sameLinePattern = RegExp('^(["\'])(.+?)(["\'])(\\.?)[\\s\\-]+' + verseRefPattern2 + r'(.*)$');
+        final sameLinePattern = RegExp('^(["\'])([\\s\\S]+?)(["\'])(\\.?)[\\s\\-]+' + verseRefPattern2 + r'(.*)$');
         final sameLineMatch = sameLinePattern.firstMatch(para);
         if (sameLineMatch != null) {
           final quoteChar = sameLineMatch.group(1);
@@ -681,6 +787,7 @@ class TextFormatter {
         if (verseRefParts.length >= 2) {
           final verse = verseRefParts[0].trim();
           final reference = verseRefParts[1].trim();
+          final displayReference = _normalizeReferenceDisplay(reference);
           // Mark that we've seen the initial verse-reference pair and store the reference
           hasSeenInitialVerseRef = true;
           initialReference = reference;
@@ -696,7 +803,8 @@ class TextFormatter {
           ));
           // Output reference on the next line (scripture reference) - ONLY ONCE
           spans.add(TextSpan(
-            text: '$reference\n\n',
+            text: '$displayReference\n\n',
+            semanticsLabel: bibleReferenceSemanticsLabel(displayReference) ?? displayReference,
             style: GoogleFonts.inter(
               fontStyle: FontStyle.italic,
               fontSize: 16,
@@ -715,8 +823,10 @@ class TextFormatter {
           if (isVerseRef) {
             initialReference = para.trim();
           }
+          final displayPara = isVerseRef ? _normalizeReferenceDisplay(para) : para;
           spans.add(TextSpan(
-            text: '$para\n\n',
+            text: '$displayPara\n\n',
+            semanticsLabel: isVerseRef ? (bibleReferenceSemanticsLabel(displayPara) ?? displayPara) : null,
             style: GoogleFonts.inter(
               fontStyle: FontStyle.italic,
               fontSize: 16,
