@@ -15,29 +15,8 @@ void main() {
   runApp(const MorningEveningApp());
 }
 
-class MorningEveningApp extends StatefulWidget {
+class MorningEveningApp extends StatelessWidget {
   const MorningEveningApp({super.key});
-
-  @override
-  State<MorningEveningApp> createState() => _MorningEveningAppState();
-}
-
-class _MorningEveningAppState extends State<MorningEveningApp> {
-  bool _isDarkMode = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _loadTheme();
-  }
-
-  Future<void> _loadTheme() async {
-    // Always use the phone's current light/dark setting when the app opens
-    final systemDark = WidgetsBinding.instance.platformDispatcher.platformBrightness == Brightness.dark;
-    setState(() {
-      _isDarkMode = systemDark;
-    });
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -61,21 +40,16 @@ class _MorningEveningAppState extends State<MorningEveningApp> {
         textTheme: GoogleFonts.interTextTheme(ThemeData.dark().textTheme),
         scaffoldBackgroundColor: Colors.black,
       ),
-      themeMode: _isDarkMode ? ThemeMode.dark : ThemeMode.light,
-      home: DevotionPage(
-        isDarkMode: _isDarkMode,
-      ),
+      themeMode: ThemeMode.system,
+      home: const DevotionPage(),
       debugShowCheckedModeBanner: false,
     );
   }
 }
 
 class DevotionPage extends StatefulWidget {
-  final bool isDarkMode;
-
   const DevotionPage({
     super.key,
-    required this.isDarkMode,
   });
 
   @override
@@ -375,12 +349,13 @@ class _DevotionPageState extends State<DevotionPage> {
 
   @override
   Widget build(BuildContext context) {
-    final backgroundColor = widget.isDarkMode ? Colors.black : Colors.white;
-    final textColor = widget.isDarkMode ? Colors.white : Colors.black;
+    final isDarkMode = Theme.of(context).colorScheme.brightness == Brightness.dark;
+    final backgroundColor = isDarkMode ? Colors.black : Colors.white;
+    final textColor = isDarkMode ? Colors.white : Colors.black;
     // Header and status bar match theme: white bg + black text in light mode, black bg + white text in dark mode
-    final headerColor = widget.isDarkMode ? Colors.black : Colors.white;
-    final headerTextAndIconColor = widget.isDarkMode ? Colors.white : Colors.black;
-    final statusBarIconBrightness = widget.isDarkMode ? Brightness.light : Brightness.dark;
+    final headerColor = isDarkMode ? Colors.black : Colors.white;
+    final headerTextAndIconColor = isDarkMode ? Colors.white : Colors.black;
+    final statusBarIconBrightness = isDarkMode ? Brightness.light : Brightness.dark;
 
     if (_isLoading) {
       return Scaffold(
@@ -415,7 +390,7 @@ class _DevotionPageState extends State<DevotionPage> {
       value: SystemUiOverlayStyle(
         statusBarColor: headerColor,
         statusBarIconBrightness: statusBarIconBrightness,
-        statusBarBrightness: widget.isDarkMode ? Brightness.dark : Brightness.light,
+        statusBarBrightness: isDarkMode ? Brightness.dark : Brightness.light,
         systemNavigationBarColor: backgroundColor,
         systemNavigationBarIconBrightness: statusBarIconBrightness,
         systemNavigationBarDividerColor: Colors.transparent,
