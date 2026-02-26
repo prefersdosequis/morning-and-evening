@@ -31,6 +31,15 @@ migrate_working_dir/
 .pub/
 /build/
 
+# Large generated audio assets (excluded for "no sound" release)
+/assets/audio/
+
+# Local dev tools (do not commit binaries/venvs)
+/tools/bin/
+/tools/venv/
+.semgrep_cache/
+.semgrep/
+
 # Symbolication related
 app.*.symbols
 

@@ -114,6 +114,43 @@ flutter build ios --release
 flutter build web --release
 ```
 
+## Code Quality & Security Checks (Open Source)
+
+### Lint + format checks
+
+```bash
+./scripts/lint.sh
+```
+
+- Fails if formatting changes are needed or if there are analyzer warnings/errors.
+- Analyzer "info" suggestions are shown but are **not fatal**.
+
+To apply formatting:
+
+```bash
+./scripts/format.sh
+```
+
+### Vulnerability + security scanning
+
+Install OSV-Scanner (local binary under `tools/bin/`):
+
+```bash
+./scripts/install_osv_scanner.sh
+```
+
+Install Semgrep (installed into `tools/venv/` if `pipx` is not available):
+
+```bash
+./scripts/install_semgrep.sh
+```
+
+Run both scans:
+
+```bash
+./scripts/security_scan.sh
+```
+
 ## Features Implemented
 
 ✅ All 730 devotions loaded from JSON

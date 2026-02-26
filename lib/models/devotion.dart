@@ -29,9 +29,3 @@ class Devotion {
     };
   }
 }
-
-
-
-
-
-

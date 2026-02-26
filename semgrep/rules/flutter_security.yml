@@ -1,0 +1,56 @@
+rules:
+  - id: dart-avoid-cleartext-http-strings
+    message: "Avoid cleartext HTTP URLs; prefer HTTPS."
+    severity: WARNING
+    languages: [generic]
+    paths:
+      include:
+        - lib
+    pattern-regex: 'http://'
+
+  - id: dart-avoid-print
+    message: "Avoid print/debugPrint in production code; prefer guarding with kDebugMode or using a proper logger."
+    severity: WARNING
+    languages: [dart]
+    paths:
+      include:
+        - lib
+    patterns:
+      - pattern-either:
+          - pattern: print(...)
+          - pattern: debugPrint(...)
+      - pattern-not-inside: |
+          if (kDebugMode)
+            ...
+      - pattern-not-inside: |
+          if (kDebugMode) {
+            ...
+          }
+
+  - id: android-manifest-no-cleartext-traffic
+    message: 'Do not enable cleartext traffic (usesCleartextTraffic="true").'
+    severity: ERROR
+    languages: [generic]
+    paths:
+      include:
+        - '**/android/app/src/main/AndroidManifest.xml'
+    pattern-regex: 'usesCleartextTraffic\s*=\s*"\s*true\s*"'
+
+  - id: android-manifest-no-debuggable
+    message: 'Do not ship android:debuggable="true" in production.'
+    severity: ERROR
+    languages: [generic]
+    paths:
+      include:
+        - '**/android/app/src/main/AndroidManifest.xml'
+    pattern-regex: 'android:debuggable\s*=\s*"\s*true\s*"'
+
+  - id: android-manifest-no-allowbackup
+    message: 'Avoid android:allowBackup="true" for apps with private data.'
+    severity: WARNING
+    languages: [generic]
+    paths:
+      include:
+        - '**/android/app/src/main/AndroidManifest.xml'
+    pattern-regex: 'android:allowBackup\s*=\s*"\s*true\s*"'
+

@@ -13,9 +13,3 @@ class StorageService {
     await prefs.setInt(_currentPageKey, page);
   }
 }
-
-
-
-
-
-

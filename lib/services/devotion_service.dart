@@ -24,9 +24,3 @@ class DevotionService {
   static List<Devotion> get devotions => _devotions ?? [];
   static int get totalPages => _devotions?.length ?? 0;
 }
-
-
-
-
-
-

@@ -1,0 +1,9 @@
+build/
+.dart_tool/
+ios/
+macos/
+windows/
+linux/
+web/
+tools/
+
