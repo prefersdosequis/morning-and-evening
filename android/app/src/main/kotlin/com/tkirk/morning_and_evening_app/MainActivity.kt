@@ -1,4 +1,4 @@
-package com.spurgeon.morning_evening_app
+package com.tkirk.morning_and_evening_app
 
 import java.io.File
 import java.io.FileOutputStream
@@ -13,7 +13,7 @@ import io.flutter.plugin.common.MethodChannel
 
 class MainActivity : FlutterActivity() {
 
-    private val channelName = "com.spurgeon.morning_evening_app/asset_delivery"
+    private val channelName = "com.tkirk.morning_and_evening_app/asset_delivery"
     private val assetPackName = "audio_assets"
     private val logTag = "MEAudio"
 
@@ -92,12 +92,6 @@ class MainActivity : FlutterActivity() {
         }
     }
 
-    /**
-     * Returns the root path for the audio_assets pack (with trailing slash).
-     * 1) Uses Play Core getPackLocation/getPackLocations when available (Play Store installs).
-     * 2) Fallback: when installed via bundletool, getPackLocation() often returns null;
-     *    try the app data path where install-time pack may be extracted.
-     */
     private fun getAudioAssetsPath(result: MethodChannel.Result) {
         val assetPackManager = AssetPackManagerFactory.getInstance(this)
         var location: AssetPackLocation? = assetPackManager.getPackLocation(assetPackName)
@@ -109,8 +103,6 @@ class MainActivity : FlutterActivity() {
             val packPath = location.path()
             Log.d(logTag, "Play Core pack location found. assetsPath=$assetsPath path=$packPath")
 
-            // We must return the directory that actually contains morning/ and evening/:
-            // i.e. the extracted "assets/" folder.
             if (!assetsPath.isNullOrEmpty()) {
                 result.success(ensureTrailingSlash(assetsPath))
                 return
@@ -122,7 +114,6 @@ class MainActivity : FlutterActivity() {
                     result.success(ensureTrailingSlash(packAssetsDir.absolutePath))
                     return
                 }
-                // Some devices/installs might already point to a directory containing the content.
                 val maybeMorning = File(packPath, "morning")
                 val maybeEvening = File(packPath, "evening")
                 if (maybeMorning.isDirectory || maybeEvening.isDirectory) {
@@ -131,12 +122,9 @@ class MainActivity : FlutterActivity() {
                 }
             }
 
-            // Some installs return a non-null location but without usable paths.
             Log.w(logTag, "Pack location present but unusable; continuing to fallback extraction.")
         }
 
-        // Fallback for bundletool / sideload: getPackLocation() often returns null;
-        // try app data paths where install-time pack may be extracted.
         val fallbackPaths = listOf(
             File(filesDir, "asset_packs/$assetPackName/assets"),
             File(filesDir.parent, "asset_packs/$assetPackName/assets"),
@@ -157,8 +145,6 @@ class MainActivity : FlutterActivity() {
             }
         }
 
-        // Fallback: asset pack may be installed as a split APK (e.g. bundletool).
-        // Extract the pack's assets/ from the split APK to cache and return that path.
         val extracted = extractAssetPackFromSplits()
         if (extracted != null) {
             Log.d(logTag, "Extracted pack assets from split APK to: $extracted")
@@ -170,10 +156,6 @@ class MainActivity : FlutterActivity() {
         result.error("UNAVAILABLE", "Audio asset pack not yet available", null)
     }
 
-    /**
-     * If the app was installed with split APKs (e.g. via bundletool), the asset pack
-     * may be one of the splits. Extract its assets/ to cache and return the path.
-     */
     private fun extractAssetPackFromSplits(): String? {
         val appInfo = applicationContext.applicationInfo
         val splitDirs = appInfo.splitSourceDirs ?: return null
@@ -216,3 +198,4 @@ class MainActivity : FlutterActivity() {
         return if (path.endsWith("/")) path else "$path/"
     }
 }
+

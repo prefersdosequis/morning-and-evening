@@ -6,7 +6,7 @@ import 'package:flutter/foundation.dart';
 /// Returns null if the pack is not yet available (e.g. still downloading at install).
 class AssetDeliveryService {
   static const MethodChannel _channel =
-      MethodChannel('com.spurgeon.morning_evening_app/asset_delivery');
+      MethodChannel('com.tkirk.morning_and_evening_app/asset_delivery');
 
   /// Returns the root path of the [audio_assets] asset pack, or null if unavailable.
   /// Path is e.g. /data/.../asset_packs/audio_assets/.../assets/

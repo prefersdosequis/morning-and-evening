@@ -22,10 +22,10 @@
 -keep public class * extends android.app.Application
 
 # Keep MainActivity
--keep class com.spurgeon.morning_evening_app.MainActivity { *; }
+-keep class com.tkirk.morning_and_evening_app.MainActivity { *; }
 
 # Prevent obfuscation of model classes (if you add any in the future)
-# -keep class com.spurgeon.morning_evening_app.models.** { *; }
+# -keep class com.tkirk.morning_and_evening_app.models.** { *; }
 
 # Google Fonts
 -keep class com.google.gson.** { *; }
