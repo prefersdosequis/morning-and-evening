@@ -35,7 +35,3 @@
 -keep class android.content.SharedPreferences { *; }
 -keep class android.content.SharedPreferences$Editor { *; }
 
-# Google Play Core (optional dependency - ignore if missing)
--dontwarn com.google.android.play.core.**
--keep class com.google.android.play.core.** { *; }
-

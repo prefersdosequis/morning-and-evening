@@ -1,11 +1,8 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'dart:async';
-import 'dart:io';
-import 'package:audioplayers/audioplayers.dart';
 import 'models/devotion.dart';
-import 'services/asset_delivery_service.dart';
 import 'services/devotion_service.dart';
 import 'utils/storage_service.dart';
 import 'utils/text_formatter.dart';
@@ -62,134 +59,53 @@ class _DevotionPageState extends State<DevotionPage> {
   bool _isLoading = true;
   bool _hasError = false;
   final ScrollController _scrollController = ScrollController();
-  final AudioPlayer _audioPlayer = AudioPlayer();
-  /// Which devotion audio is loaded (e.g. "morning/001.mp3") so we can resume or reload.
-  String? _loadedAudioKey;
-  bool _didAudioPreflight = false;
-  /// Cache the actual file path we loaded so resume works reliably.
-  String? _loadedAudioPath;
 
   @override
   void initState() {
     super.initState();
-    _configureAudio();
     _loadDevotions();
   }
 
-  Future<void> _configureAudio() async {
-    // Make playback behave like normal media audio on Android/iOS.
-    try {
-      await _audioPlayer.setReleaseMode(ReleaseMode.stop);
-      await _audioPlayer.setVolume(1.0);
-      await _audioPlayer.setAudioContext(
-        AudioContext(
-          android: const AudioContextAndroid(
-            isSpeakerphoneOn: true,
-            stayAwake: true,
-            contentType: AndroidContentType.music,
-            usageType: AndroidUsageType.media,
-            audioFocus: AndroidAudioFocus.gain,
-          ),
-        ),
-      );
+  bool _isLeapYear(int year) {
+    if (year % 400 == 0) return true;
+    if (year % 100 == 0) return false;
+    return year % 4 == 0;
+  }
 
-      _audioPlayer.onPlayerStateChanged.listen((state) {
-        debugPrint('MEAudio: player state=$state');
-      });
-    } catch (e) {
-      debugPrint('MEAudio: audio config failed: $e');
-    }
+  int _normalizePageForYear(int page, {required int year}) {
+    if (page < 1 || page > _devotions.length) return page;
+    if (_isLeapYear(year)) return page;
+
+    final devotion = _devotions[page - 1];
+    // Dataset includes Feb 29 as day 60. In non-leap years, redirect away from it.
+    if (devotion.day != 60) return page;
+
+    // Map Feb 29 Morning/Evening -> Mar 1 Morning/Evening (day 61), if present.
+    final replacement = _findDevotionIndex(_devotions, 61, devotion.type);
+    return replacement ?? page;
   }
 
   @override
   void dispose() {
     _scrollController.dispose();
-    _audioPlayer.dispose();
     super.dispose();
-  }
-
-  String _currentDevotionAudioKey() {
-    if (_devotions.isEmpty) return '';
-    final d = _devotions[_currentPage - 1];
-    return '${d.type}/${d.day.toString().padLeft(3, '0')}.mp3';
-  }
-
-  /// Pause at current position; resume with play.
-  void _pauseAudio() {
-    _audioPlayer.pause();
-  }
-
-  Future<void> _stopAudioForDevotionChange() async {
-    try {
-      await _audioPlayer.stop();
-    } catch (e) {
-      debugPrint('MEAudio: stop failed: $e');
-    } finally {
-      // Ensure next play loads the newly selected devotion's audio.
-      _loadedAudioKey = null;
-      _loadedAudioPath = null;
-    }
-  }
-
-  /// Play audio for the current devotion (asset pack: morning/NNN.mp3 or evening/NNN.mp3).
-  /// Resumes from current position if this devotion is already loaded and paused.
-  Future<void> _playCurrentDevotionAudio() async {
-    if (_devotions.isEmpty) return;
-    final devotion = _devotions[_currentPage - 1];
-    final key = _currentDevotionAudioKey();
-    final relativePath = key;
-
-    try {
-      debugPrint('MEAudio: play requested: type=${devotion.type} day=${devotion.day} key=$key');
-      // Resume if same devotion is loaded and currently paused.
-      if (_loadedAudioKey == key && _audioPlayer.state == PlayerState.paused) {
-        await _audioPlayer.resume();
-        return;
-      }
-
-      final path = await AssetDeliveryService.getAudioFilePath(relativePath);
-      debugPrint('MEAudio: AssetDeliveryService returned path=$path');
-      if (path != null && path.isNotEmpty) {
-        final exists = await File(path).exists();
-        debugPrint('MEAudio: file exists=$exists');
-        if (!exists) {
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('Audio pack path found, but file missing: $relativePath')),
-            );
-          }
-          return;
-        }
-        _loadedAudioPath = path;
-        await _audioPlayer.play(DeviceFileSource(path));
-      } else {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text(
-                'Audio not available.\n'
-                'For local testing you must install an App Bundle (AAB) with the Play Asset Delivery pack (e.g. via bundletool or Play Internal Testing). '
-                '`flutter run` installs an APK and won’t include asset packs.',
-              ),
-            ),
-          );
-        }
-        return;
-      }
-      _loadedAudioKey = key;
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Could not play audio: $e')),
-        );
-      }
-    }
   }
 
   int _getDayOfYear(DateTime date) {
     // Calculate day of year (1-365, or 366 for leap years)
     final startOfYear = DateTime(date.year, 1, 1);
     return date.difference(startOfYear).inDays + 1;
+  }
+
+  int _devotionDayForDate(DateTime date) {
+    // The devotions dataset includes Feb 29 as day 60.
+    // In non-leap years, skip Feb 29 by mapping:
+    // - Mar 1 (dayOfYear 60) -> devotion day 61
+    // - ...
+    // - Dec 31 (dayOfYear 365) -> devotion day 366
+    final dayOfYear = _getDayOfYear(date);
+    if (_isLeapYear(date.year)) return dayOfYear;
+    return dayOfYear >= 60 ? dayOfYear + 1 : dayOfYear;
   }
 
   int? _findDevotionIndex(List<Devotion> devotions, int day, String type) {
@@ -204,7 +120,7 @@ class _DevotionPageState extends State<DevotionPage> {
 
   int _getInitialPage(List<Devotion> devotions) {
     final now = DateTime.now();
-    final dayOfYear = _getDayOfYear(now);
+    final devotionDay = _devotionDayForDate(now);
     final hour = now.hour;
 
     // Morning: 2:00 AM – 1:59 PM. Evening: 2:00 PM – 1:59 AM.
@@ -216,7 +132,7 @@ class _DevotionPageState extends State<DevotionPage> {
     }
     
     // Find the devotion for today
-    final pageIndex = _findDevotionIndex(devotions, dayOfYear, type);
+    final pageIndex = _findDevotionIndex(devotions, devotionDay, type);
     
     // If found, return it; otherwise return 1 as fallback
     return pageIndex ?? 1;
@@ -235,13 +151,7 @@ class _DevotionPageState extends State<DevotionPage> {
         _isLoading = false;
       });
 
-      StorageService.saveCurrentPage(_currentPage);
-
-      // Debug preflight: verify the asset pack path + today's MP3 exists without needing a Play tap.
-      if (!_didAudioPreflight) {
-        _didAudioPreflight = true;
-        Future<void>.delayed(const Duration(milliseconds: 300), _audioPreflightForCurrentDevotion);
-      }
+      await StorageService.saveCurrentPage(_currentPage);
     } catch (e) {
       setState(() {
         _hasError = true;
@@ -250,57 +160,79 @@ class _DevotionPageState extends State<DevotionPage> {
     }
   }
 
-  Future<void> _audioPreflightForCurrentDevotion() async {
-    if (!mounted || _devotions.isEmpty) return;
-    final key = _currentDevotionAudioKey();
-    if (key.isEmpty) return;
-
-    try {
-      debugPrint('MEAudio: preflight key=$key');
-      final path = await AssetDeliveryService.getAudioFilePath(key);
-      debugPrint('MEAudio: preflight resolved path=$path');
-      if (path != null && path.isNotEmpty) {
-        final exists = await File(path).exists();
-        debugPrint('MEAudio: preflight file exists=$exists');
-      }
-    } catch (e) {
-      debugPrint('MEAudio: preflight error: $e');
-    }
-  }
-
   void _goToPage(int page) {
     if (page < 1 || page > _devotions.length) return;
-    // If the user navigates to a different devotion, stop whatever audio is currently playing.
-    // The next tap of Play should play the newly selected devotion's audio.
-    if (page != _currentPage && _audioPlayer.state != PlayerState.stopped) {
-      unawaited(_stopAudioForDevotionChange());
-    } else {
-      // Even if already stopped, make sure we don't resume a previous devotion by accident.
-      _loadedAudioKey = null;
-      _loadedAudioPath = null;
+    final normalized = _normalizePageForYear(page, year: DateTime.now().year);
+    if (normalized != page) {
+      _goToPage(normalized);
+      return;
     }
+    if (page == _currentPage) return;
 
     setState(() {
       _currentPage = page;
     });
+
+    // Scroll to top after the new devotion has rendered.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      if (_scrollController.hasClients) {
+        _scrollController.jumpTo(0);
+      }
+    });
     
-    // Scroll to top when page changes
-    _scrollController.animateTo(
-      0,
-      duration: const Duration(milliseconds: 300),
-      curve: Curves.easeOut,
-    );
-    
-    StorageService.saveCurrentPage(page);
-    HapticFeedback.lightImpact();
+    unawaited(StorageService.saveCurrentPage(page));
+    unawaited(HapticFeedback.lightImpact());
   }
 
   void _goToNextPage() {
-    _goToPage(_currentPage + 1);
+    if (_devotions.isEmpty) return;
+    final current = _devotions[_currentPage - 1];
+    final year = DateTime.now().year;
+    final isLeap = _isLeapYear(year);
+
+    final String nextType;
+    final int nextDay;
+    if (current.type == 'morning') {
+      nextType = 'evening';
+      nextDay = current.day;
+    } else {
+      nextType = 'morning';
+      // Skip Feb 29 (day 60) in non-leap years.
+      if (!isLeap && current.day == 59) {
+        nextDay = 61;
+      } else {
+        nextDay = current.day + 1;
+      }
+    }
+
+    final idx = _findDevotionIndex(_devotions, nextDay, nextType);
+    if (idx != null) _goToPage(idx);
   }
 
   void _goToPreviousPage() {
-    _goToPage(_currentPage - 1);
+    if (_devotions.isEmpty) return;
+    final current = _devotions[_currentPage - 1];
+    final year = DateTime.now().year;
+    final isLeap = _isLeapYear(year);
+
+    final String prevType;
+    final int prevDay;
+    if (current.type == 'evening') {
+      prevType = 'morning';
+      prevDay = current.day;
+    } else {
+      prevType = 'evening';
+      // Skip Feb 29 (day 60) in non-leap years.
+      if (!isLeap && current.day == 61) {
+        prevDay = 59;
+      } else {
+        prevDay = current.day - 1;
+      }
+    }
+
+    final idx = _findDevotionIndex(_devotions, prevDay, prevType);
+    if (idx != null) _goToPage(idx);
   }
 
   Widget _buildDateBadge(Devotion devotion) {
@@ -404,43 +336,21 @@ class _DevotionPageState extends State<DevotionPage> {
           right: false,
           child: Column(
           children: [
-            // Header: play/pause button top-left, title centered
+            // Header
             Container(
               width: double.infinity,
               color: headerColor,
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              child: Row(
-                children: [
-                  StreamBuilder<PlayerState>(
-                    stream: _audioPlayer.onPlayerStateChanged,
-                    builder: (context, snapshot) {
-                      final playing = snapshot.data == PlayerState.playing;
-                      return IconButton(
-                        icon: Icon(
-                          playing ? Icons.pause : Icons.play_arrow,
-                          color: headerTextAndIconColor,
-                          size: 28,
-                        ),
-                        onPressed: _isLoading || _devotions.isEmpty
-                            ? null
-                            : (playing ? _pauseAudio : _playCurrentDevotionAudio),
-                        tooltip: playing ? 'Pause' : 'Play devotion audio',
-                      );
-                    },
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              child: Center(
+                child: Text(
+                  'Morning and Evening',
+                  style: GoogleFonts.inter(
+                    color: headerTextAndIconColor,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
                   ),
-                  Expanded(
-                    child: Text(
-                      'Morning and Evening',
-                      style: GoogleFonts.inter(
-                        color: headerTextAndIconColor,
-                        fontSize: 18,
-                        fontWeight: FontWeight.w700,
-                      ),
-                      textAlign: TextAlign.center,
-                    ),
-                  ),
-                  const SizedBox(width: 48), // balance the left play button for visual center
-                ],
+                  textAlign: TextAlign.center,
+                ),
               ),
             ),
 

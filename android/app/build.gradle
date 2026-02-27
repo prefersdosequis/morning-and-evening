@@ -14,11 +14,8 @@ if (keystorePropertiesFile.exists()) {
 
 android {
     namespace = "com.tkirk.morning_and_evening_app"
-    // Media3 1.8.x requires compileSdk 35+ (AAR metadata).
     compileSdk = 35
     ndkVersion = flutter.ndkVersion
-    // Declare asset pack so the app bundle (AAB) includes it; Play delivers it at install.
-    assetPacks = [":asset-packs:audio_assets"]
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_1_8
@@ -72,8 +69,9 @@ android {
 }
 
 dependencies {
-    // Play Core / Asset Delivery (Kotlin): resolve install-time pack path at runtime.
-    implementation "com.google.android.play:asset-delivery-ktx:2.2.0"
+    // Required by Flutter's Android embedding when minification (R8) is enabled.
+    // Provides Play Core splitinstall/splitcompat classes referenced by Flutter.
+    implementation "com.google.android.play:core:1.10.3"
 }
 
 flutter {

@@ -2,6 +2,7 @@
 *.class
 *.log
 *.pyc
+*.mp3
 *.swp
 .DS_Store
 .atom/
@@ -31,9 +32,6 @@ migrate_working_dir/
 .pub/
 /build/
 
-# Large generated audio assets (excluded for "no sound" release)
-/assets/audio/
-
 # Local dev tools (do not commit binaries/venvs)
 /tools/bin/
 /tools/venv/
@@ -62,8 +60,3 @@ android/local.properties
 android/bundletool-all.jar
 android/devotions.json
 
-# Asset pack audio (large binaries; deliver via CI or separate process)
-android/asset-packs/audio_assets/src/main/assets/**/*.mp3
-
-# Source audio library (keep local; too large for git)
-assets/audio/**/*.mp3
