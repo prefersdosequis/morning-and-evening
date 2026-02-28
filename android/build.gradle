@@ -13,6 +13,33 @@ subprojects {
     project.evaluationDependsOn(":app")
 }
 
+// Android Studio "Build Project with Tests" builds androidTest variants for included
+// Flutter plugin modules. Some AndroidX test-time dependencies now require minSdk 21
+// (e.g., androidx.exifinterface:exifinterface:1.4.1), so we align all Android
+// subprojects to minSdk 21 to avoid manifest merger failures.
+subprojects { subproject ->
+    def enforceMinSdk21 = {
+        def androidExt = subproject.extensions.findByName("android")
+        if (androidExt == null || androidExt.defaultConfig == null) return
+
+        def currentMinSdk = androidExt.defaultConfig.minSdk
+        def currentApiLevel = null
+        if (currentMinSdk instanceof Integer) {
+            currentApiLevel = currentMinSdk
+        } else if (currentMinSdk != null && currentMinSdk.hasProperty("apiLevel")) {
+            currentApiLevel = currentMinSdk.apiLevel
+        }
+
+        if (currentApiLevel == null || currentApiLevel < 21) {
+            androidExt.defaultConfig.minSdk = 21
+        }
+    }
+
+    // Run as soon as the Android plugin is applied (no afterEvaluate).
+    subproject.pluginManager.withPlugin("com.android.application") { enforceMinSdk21() }
+    subproject.pluginManager.withPlugin("com.android.library") { enforceMinSdk21() }
+}
+
 tasks.register("clean", Delete) {
     delete rootProject.buildDir
 }
