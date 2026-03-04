@@ -16,6 +16,8 @@ android {
     namespace = "com.tkirk.morning_and_evening_app"
     compileSdk = 35
     ndkVersion = flutter.ndkVersion
+    // Declare asset pack so the app bundle (AAB) includes it; Play delivers it at install.
+    assetPacks = [":asset-packs:audio_assets"]
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_1_8
@@ -31,7 +33,7 @@ android {
         applicationId = "com.tkirk.morning_and_evening_app"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
-        minSdk = 21
+        minSdkVersion = flutter.minSdkVersion
         targetSdk = 35
         versionCode = flutter.versionCode
         versionName = flutter.versionName
@@ -70,7 +72,8 @@ android {
 }
 
 dependencies {
-    // (intentionally empty)
+    // Play Core / Asset Delivery (Kotlin): resolve install-time pack path at runtime.
+    implementation "com.google.android.play:asset-delivery-ktx:2.2.0"
 }
 
 flutter {

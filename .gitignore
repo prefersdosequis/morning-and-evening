@@ -32,6 +32,9 @@ migrate_working_dir/
 .pub/
 /build/
 
+# Audio assets are kept out of Git and injected during release builds.
+/assets/audio/
+
 # Local dev tools (do not commit binaries/venvs)
 /tools/bin/
 /tools/venv/

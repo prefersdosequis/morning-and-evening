@@ -41,10 +41,15 @@ class TextFormatter {
     final rest = parts.sublist(0, parts.length - 1);
 
     final leadingNumber = int.tryParse(rest.isNotEmpty ? rest.first : '');
-    final hasLeadingOrdinalBookNumber = leadingNumber != null && leadingNumber >= 1 && leadingNumber <= 3;
-
-    final bookName = hasLeadingOrdinalBookNumber ? rest.sublist(1).join(' ') : rest.join(' ');
-    final bookSpoken = hasLeadingOrdinalBookNumber ? '${_ordinal(leadingNumber!)} $bookName' : bookName;
+    String bookName;
+    String bookSpoken;
+    if (leadingNumber != null && leadingNumber >= 1 && leadingNumber <= 3) {
+      bookName = rest.sublist(1).join(' ');
+      bookSpoken = '${_ordinal(leadingNumber)} $bookName';
+    } else {
+      bookName = rest.join(' ');
+      bookSpoken = bookName;
+    }
 
     // Chapter:Verse form (allow hyphen/en-dash ranges, or comma-separated verses).
     final cvMatch = RegExp(r'^(\d+):(\d+(?:[,\u2013\u2014-]\d+)*)$').firstMatch(last);
@@ -123,12 +128,9 @@ class TextFormatter {
         final verseText = match.group(1) ?? '';
         final period = match.group(2) ?? '';
         final reference = match.group(3) ?? '';
-        final afterRef = match.group(4) ?? '';
         if (verseText.isEmpty || reference.isEmpty) return match.group(0) ?? '';
         if (kDebugMode) print('DEBUG: Replacing double quote with dash #$replacementCount: "$verseText"$period-$reference');
         // Always put double newline after reference to separate it from body text
-        // If afterRef is just whitespace or single newline, replace with double newline
-        final cleanAfterRef = afterRef.trim();
         final replacement = '"$verseText$period"\n$reference\n\n';
         return replacement;
       },
@@ -141,7 +143,6 @@ class TextFormatter {
         final verseText = match.group(1) ?? '';
         final period = match.group(2) ?? '';
         final reference = match.group(3) ?? '';
-        final afterRef = match.group(4) ?? '';
         if (verseText.isEmpty || reference.isEmpty) return match.group(0) ?? '';
         if (kDebugMode) print('DEBUG: Replacing single quote with dash #$replacementCount: \'$verseText\'$period-$reference');
         // Always put double newline after reference to separate it from body text
@@ -158,7 +159,6 @@ class TextFormatter {
         final verseText = match.group(1) ?? '';
         final period = match.group(2) ?? '';
         final reference = match.group(3) ?? '';
-        final afterRef = match.group(4) ?? '';
         if (verseText.isEmpty || reference.isEmpty) return match.group(0) ?? '';
         if (kDebugMode) print('DEBUG: Replacing double quote with space #$replacementCount: "$verseText"$period $reference');
         // Always put double newline after reference to separate it from body text
@@ -174,7 +174,6 @@ class TextFormatter {
         final verseText = match.group(1) ?? '';
         final period = match.group(2) ?? '';
         final reference = match.group(3) ?? '';
-        final afterRef = match.group(4) ?? '';
         if (verseText.isEmpty || reference.isEmpty) return match.group(0) ?? '';
         if (kDebugMode) print('DEBUG: Replacing single quote with space #$replacementCount: \'$verseText\'$period $reference');
         // Always put double newline after reference to separate it from body text
