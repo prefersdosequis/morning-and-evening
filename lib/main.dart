@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 import 'package:audioplayers/audioplayers.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -63,9 +64,16 @@ class _DevotionPageState extends State<DevotionPage> {
   bool _hasError = false;
   final ScrollController _scrollController = ScrollController();
   final AudioPlayer _audioPlayer = AudioPlayer();
+
   /// Which devotion audio is loaded (e.g. "morning/001.mp3") so we can resume or reload.
   String? _loadedAudioKey;
   bool _didAudioPreflight = false;
+
+  void _log(String message) {
+    if (kDebugMode) {
+      debugPrint(message);
+    }
+  }
 
   @override
   void initState() {
@@ -111,10 +119,10 @@ class _DevotionPageState extends State<DevotionPage> {
       );
 
       _audioPlayer.onPlayerStateChanged.listen((state) {
-        debugPrint('MEAudio: player state=$state');
+        _log('MEAudio: player state=$state');
       });
     } catch (e) {
-      debugPrint('MEAudio: audio config failed: $e');
+      _log('MEAudio: audio config failed: $e');
     }
   }
 
@@ -140,7 +148,7 @@ class _DevotionPageState extends State<DevotionPage> {
     try {
       await _audioPlayer.stop();
     } catch (e) {
-      debugPrint('MEAudio: stop failed: $e');
+      _log('MEAudio: stop failed: $e');
     } finally {
       // Ensure next play loads the newly selected devotion's audio.
       _loadedAudioKey = null;
@@ -156,7 +164,8 @@ class _DevotionPageState extends State<DevotionPage> {
     final relativePath = key;
 
     try {
-      debugPrint('MEAudio: play requested: type=${devotion.type} day=${devotion.day} key=$key');
+      _log(
+          'MEAudio: play requested: type=${devotion.type} day=${devotion.day} key=$key');
       // Resume if same devotion is loaded and currently paused.
       if (_loadedAudioKey == key && _audioPlayer.state == PlayerState.paused) {
         await _audioPlayer.resume();
@@ -164,14 +173,16 @@ class _DevotionPageState extends State<DevotionPage> {
       }
 
       final path = await AssetDeliveryService.getAudioFilePath(relativePath);
-      debugPrint('MEAudio: AssetDeliveryService returned path=$path');
+      _log('MEAudio: AssetDeliveryService returned path=$path');
       if (path != null && path.isNotEmpty) {
         final exists = await File(path).exists();
-        debugPrint('MEAudio: file exists=$exists');
+        _log('MEAudio: file exists=$exists');
         if (!exists) {
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('Audio pack path found, but file missing: $relativePath')),
+              SnackBar(
+                  content: Text(
+                      'Audio pack path found, but file missing: $relativePath')),
             );
           }
           return;
@@ -266,7 +277,8 @@ class _DevotionPageState extends State<DevotionPage> {
       // Debug preflight: verify the asset pack path + today's MP3 exists without needing a Play tap.
       if (!_didAudioPreflight) {
         _didAudioPreflight = true;
-        Future<void>.delayed(const Duration(milliseconds: 300), _audioPreflightForCurrentDevotion);
+        Future<void>.delayed(const Duration(milliseconds: 300),
+            _audioPreflightForCurrentDevotion);
       }
     } catch (e) {
       setState(() {
@@ -282,16 +294,30 @@ class _DevotionPageState extends State<DevotionPage> {
     if (key.isEmpty) return;
 
     try {
-      debugPrint('MEAudio: preflight key=$key');
+      _log('MEAudio: preflight key=$key');
       final path = await AssetDeliveryService.getAudioFilePath(key);
-      debugPrint('MEAudio: preflight resolved path=$path');
+      _log('MEAudio: preflight resolved path=$path');
       if (path != null && path.isNotEmpty) {
         final exists = await File(path).exists();
-        debugPrint('MEAudio: preflight file exists=$exists');
+        _log('MEAudio: preflight file exists=$exists');
       }
     } catch (e) {
-      debugPrint('MEAudio: preflight error: $e');
+      _log('MEAudio: preflight error: $e');
     }
+  }
+
+  void _resetScrollToTop() {
+    // Force top position immediately, then enforce again after rebuild so
+    // all morning<->evening/day transitions land at the top reliably.
+    if (_scrollController.hasClients) {
+      _scrollController.jumpTo(0);
+    }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_scrollController.hasClients) return;
+      if (_scrollController.offset != 0) {
+        _scrollController.jumpTo(0);
+      }
+    });
   }
 
   void _goToPage(int page) {
@@ -315,12 +341,7 @@ class _DevotionPageState extends State<DevotionPage> {
       _currentPage = page;
     });
 
-    // Scroll to top when page changes
-    _scrollController.animateTo(
-      0,
-      duration: const Duration(milliseconds: 300),
-      curve: Curves.easeOut,
-    );
+    _resetScrollToTop();
 
     StorageService.saveCurrentPage(page);
     HapticFeedback.lightImpact();
@@ -422,20 +443,22 @@ class _DevotionPageState extends State<DevotionPage> {
 
   @override
   Widget build(BuildContext context) {
-    final isDarkMode = Theme.of(context).colorScheme.brightness == Brightness.dark;
+    final isDarkMode =
+        Theme.of(context).colorScheme.brightness == Brightness.dark;
     final backgroundColor = isDarkMode ? Colors.black : Colors.white;
     final textColor = isDarkMode ? Colors.white : Colors.black;
     // Header and status bar match theme: white bg + black text in light mode, black bg + white text in dark mode
     final headerColor = isDarkMode ? Colors.black : Colors.white;
     final headerTextAndIconColor = isDarkMode ? Colors.white : Colors.black;
-    final statusBarIconBrightness = isDarkMode ? Brightness.light : Brightness.dark;
+    final statusBarIconBrightness =
+        isDarkMode ? Brightness.light : Brightness.dark;
 
     if (_isLoading) {
       return Scaffold(
         backgroundColor: backgroundColor,
-        body: Center(
+        body: const Center(
           child: CircularProgressIndicator(
-            valueColor: AlwaysStoppedAnimation<Color>(const Color(0xFF800000)),
+            valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF800000)),
           ),
         ),
       );
@@ -496,7 +519,9 @@ class _DevotionPageState extends State<DevotionPage> {
                           ),
                           onPressed: _isLoading || _devotions.isEmpty
                               ? null
-                              : (playing ? _pauseAudio : _playCurrentDevotionAudio),
+                              : (playing
+                                  ? _pauseAudio
+                                  : _playCurrentDevotionAudio),
                           tooltip: playing ? 'Pause' : 'Play devotion audio',
                         );
                       },
@@ -512,7 +537,9 @@ class _DevotionPageState extends State<DevotionPage> {
                         textAlign: TextAlign.center,
                       ),
                     ),
-                    const SizedBox(width: 48), // balance the left play button for visual center
+                    const SizedBox(
+                        width:
+                            48), // balance the left play button for visual center
                   ],
                 ),
               ),
@@ -543,8 +570,10 @@ class _DevotionPageState extends State<DevotionPage> {
                     padding: EdgeInsets.only(
                       top: 16,
                       bottom: 16,
-                      left: MediaQuery.of(context).size.width * 0.08, // ~3cm on most devices
-                      right: MediaQuery.of(context).size.width * 0.08, // ~3cm on most devices
+                      left: MediaQuery.of(context).size.width *
+                          0.08, // ~3cm on most devices
+                      right: MediaQuery.of(context).size.width *
+                          0.08, // ~3cm on most devices
                     ),
                     child: SingleChildScrollView(
                       controller: _scrollController,
@@ -568,7 +597,9 @@ class _DevotionPageState extends State<DevotionPage> {
                                   color: textColor,
                                   fontWeight: FontWeight.w700,
                                 ),
-                                children: TextFormatter.formatContent(devotion.content, textColor: textColor),
+                                children: TextFormatter.formatContent(
+                                    devotion.content,
+                                    textColor: textColor),
                               ),
                             ),
                           ),

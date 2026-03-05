@@ -5,7 +5,7 @@ Use this checklist before uploading the app to the Google Play Store.
 ## Pre-submission security review (done)
 
 - **Debug logging**: All `print()` and `debugPrint()` in `lib/` are wrapped in `if (kDebugMode)` so they do not run in release builds. No devotion content or internal paths are logged in production.
-- **No audio/API**: This version has no audio and no external API keys.
+- **Audio delivery model**: Audio is delivered through Android Play Asset Delivery. No API keys are shipped in the app.
 
 ## Pre-upload checklist
 
@@ -34,13 +34,13 @@ Output: `build/app/outputs/bundle/release/app-release.aab`
 | Feature | Location |
 |--------|----------|
 | **No cleartext traffic** | `AndroidManifest.xml`: `usesCleartextTraffic="false"` and `networkSecurityConfig` |
-| **HTTPS-only network config** | `res/xml/network_security_config.xml` |
+| **HTTPS-only network config** | `res/xml/network_security_config.xml` (trusts system CAs only) |
 | **Backup disabled** | `allowBackup="false"` and `fullBackupContent` / `data_extraction_rules` exclude app data |
-| **ProGuard (minify + shrink)** | `android/app/build.gradle`: `minifyEnabled true`, `shrinkResources true` |
+| **Release signing guardrail** | `android/app/build.gradle`: release build fails if `android/key.properties` is missing (no debug-sign fallback) |
+| **Code obfuscation option** | Build with `--obfuscate --split-debug-info=...` for Dart symbol obfuscation in release |
 | **ProGuard rules** | `android/app/proguard-rules.pro` (keeps Flutter and app entry points) |
 | **Secrets not in repo** | `key.properties` in `.gitignore` (keystore only; no API keys in this app) |
 | **Release logging** | All `print`/`debugPrint` in `lib/` guarded with `kDebugMode` (no-op in release) |
-| **Release signing** | Signing config in `build.gradle` using `key.properties` |
 
 ## What to never commit
 

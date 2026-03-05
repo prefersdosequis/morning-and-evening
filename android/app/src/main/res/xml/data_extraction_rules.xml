@@ -5,12 +5,12 @@
 -->
 <data-extraction-rules>
     <cloud-backup>
-        <!-- Disable cloud backup -->
-        <include domain="file" path="." />
+        <!-- Explicitly exclude app files from cloud backup -->
+        <exclude domain="file" path="." />
     </cloud-backup>
     <device-transfer>
-        <!-- Disable device-to-device transfer -->
-        <include domain="file" path="." />
+        <!-- Explicitly exclude app files from device-to-device transfer -->
+        <exclude domain="file" path="." />
     </device-transfer>
 </data-extraction-rules>
 

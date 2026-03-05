@@ -11,6 +11,9 @@ def keystoreProperties = new Properties()
 if (keystorePropertiesFile.exists()) {
     keystoreProperties.load(new FileInputStream(keystorePropertiesFile))
 }
+def isReleaseBuildRequested = gradle.startParameter.taskNames.any { taskName ->
+    taskName.toLowerCase().contains("release")
+}
 
 android {
     namespace = "com.tkirk.morning_and_evening_app"
@@ -52,11 +55,16 @@ android {
 
     buildTypes {
         release {
-            // Use release signing config if keystore properties exist, otherwise fall back to debug
+            // Never allow debug signing for release builds.
             if (keystorePropertiesFile.exists()) {
                 signingConfig signingConfigs.release
             } else {
-                signingConfig signingConfigs.debug
+                if (isReleaseBuildRequested) {
+                    throw new RuntimeException(
+                        "Release build requested but android/key.properties is missing. " +
+                        "Create key.properties with release keystore settings."
+                    )
+                }
             }
             
             // Keep minification off for Play Core compatibility on targetSdk 34+.
