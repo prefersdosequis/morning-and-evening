@@ -181,14 +181,30 @@ class MainActivity : FlutterActivity() {
         val packApk = splitDirs.zip(splitNames).firstOrNull { (_, name) ->
             name.contains("audio", ignoreCase = true) || name.contains("asset", ignoreCase = true)
         }?.first ?: return null
+        val splitFile = File(packApk)
+        val splitSignature = "${splitFile.absolutePath}|${splitFile.lastModified()}|${splitFile.length()}"
+        val splitSignatureShort = "${splitFile.lastModified()}|${splitFile.length()}"
 
         val cacheDir = File(filesDir, "cache/audio_assets")
         val assetsDir = File(cacheDir, "assets")
         val morning = File(assetsDir, "morning")
-        if (morning.isDirectory) return assetsDir.absolutePath
+        val evening = File(assetsDir, "evening")
+        val markerFile = File(cacheDir, ".split_signature")
+
+        if ((morning.isDirectory || evening.isDirectory) && markerFile.isFile) {
+            val cachedSignature = runCatching { markerFile.readText() }.getOrNull()
+            if (cachedSignature == splitSignature) {
+                Log.d(logTag, "splitCache: reused signature=$splitSignatureShort")
+                return assetsDir.absolutePath
+            }
+            Log.d(logTag, "splitCache: stale signature=$splitSignatureShort -> re-extract")
+        }
 
         try {
             Log.d(logTag, "Attempting to extract assets/ from split APK: $packApk")
+            cacheDir.deleteRecursively()
+            cacheDir.mkdirs()
+
             ZipFile(packApk).use { zip ->
                 val entries = zip.entries()
                 while (entries.hasMoreElements()) {
@@ -205,7 +221,13 @@ class MainActivity : FlutterActivity() {
                     }
                 }
             }
-            return if (morning.exists()) assetsDir.absolutePath else null
+            return if (morning.isDirectory || evening.isDirectory) {
+                runCatching { markerFile.writeText(splitSignature) }
+                Log.d(logTag, "splitCache: re-extracted signature=$splitSignatureShort")
+                assetsDir.absolutePath
+            } else {
+                null
+            }
         } catch (e: Exception) {
             Log.e(logTag, "Failed extracting pack from split APK", e)
             return null
