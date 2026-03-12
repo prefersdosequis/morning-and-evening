@@ -115,6 +115,10 @@ class _DevotionPageState extends State<DevotionPage> {
             usageType: AndroidUsageType.media,
             audioFocus: AndroidAudioFocus.gain,
           ),
+          iOS: AudioContextIOS(
+            category: AVAudioSessionCategory.playback,
+            options: const {},
+          ),
         ),
       );
 
@@ -179,26 +183,25 @@ class _DevotionPageState extends State<DevotionPage> {
         _log('MEAudio: file exists=$exists');
         if (!exists) {
           if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                  content: Text(
-                      'Audio pack path found, but file missing: $relativePath')),
-            );
+            final detail = Platform.isIOS
+                ? 'Audio resource resolved but file not found: $relativePath'
+                : 'Audio pack path found, but file missing: $relativePath';
+            ScaffoldMessenger.of(context)
+                .showSnackBar(SnackBar(content: Text(detail)));
           }
           return;
         }
         await _audioPlayer.play(DeviceFileSource(path));
       } else {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text(
-                'Audio not available.\n'
-                'For local testing you must install an App Bundle (AAB) with the Play Asset Delivery pack (e.g. via bundletool or Play Internal Testing). '
-                '`flutter run` installs an APK and won’t include asset packs.',
-              ),
-            ),
-          );
+          final message = Platform.isIOS
+              ? 'Audio not available. The resource may still be downloading or '
+                  'was not included in the On-Demand Resources catalog.'
+              : 'Audio not available.\n'
+                  'For local testing you must install an App Bundle (AAB) with the Play Asset Delivery pack (e.g. via bundletool or Play Internal Testing). '
+                  '`flutter run` installs an APK and won’t include asset packs.';
+          ScaffoldMessenger.of(context)
+              .showSnackBar(SnackBar(content: Text(message)));
         }
         return;
       }

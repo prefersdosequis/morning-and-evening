@@ -1,74 +1,202 @@
+#!/usr/bin/env ruby
+#
+# setup_odr.rb — Add audio MP3s to the Xcode project as On-Demand Resources.
+#
+# Prerequisites:
+#   gem install xcodeproj   (already available if CocoaPods is installed)
+#   Audio files present at  ../assets/audio/morning/*.mp3
+#                           ../assets/audio/evening/*.mp3
+#
+# Usage:
+#   cd ios
+#   ruby setup_odr.rb
+#
+# What this script does:
+#   1. Copies audio from assets/audio/ into ios/AudioResources/
+#   2. Adds every MP3 to the Runner target's "Copy Bundle Resources" build phase
+#   3. Tags each file with a monthly ODR tag  (audio_jan … audio_dec)
+#   4. Registers the tags in KnownAssetTags so Xcode recognizes them
+#
+# The script is idempotent — re-running it removes the previous AudioResources
+# group before re-adding everything.
+
 require 'xcodeproj'
 require 'fileutils'
 
+# ---------------------------------------------------------------------------
 # Configuration
-project_path = 'Runner.xcodeproj'
-audio_source_dir = '../assets/audio' # Path relative to the ios folder
-resource_group_name = 'AudioResources'
-target_name = 'Runner'
+# ---------------------------------------------------------------------------
 
-# Month boundaries for ODR tags
-MONTHS = [
-  { tag: 'audio_jan', start: 1, end: 31 },
-  { tag: 'audio_feb', start: 32, end: 60 },
-  { tag: 'audio_mar', start: 61, end: 91 },
-  { tag: 'audio_apr', start: 92, end: 121 },
-  { tag: 'audio_may', start: 122, end: 152 },
-  { tag: 'audio_jun', start: 153, end: 182 },
-  { tag: 'audio_jul', start: 183, end: 213 },
-  { tag: 'audio_aug', start: 214, end: 244 },
-  { tag: 'audio_sep', start: 245, end: 274 },
-  { tag: 'audio_oct', start: 275, end: 305 },
-  { tag: 'audio_nov', start: 306, end: 335 },
-  { tag: 'audio_dec', start: 336, end: 366 }
-]
+SCRIPT_DIR    = __dir__
+PROJECT_PATH  = File.join(SCRIPT_DIR, 'Runner.xcodeproj')
+AUDIO_SOURCE  = File.expand_path(File.join(SCRIPT_DIR, '..', 'assets', 'audio'))
+AUDIO_DEST    = File.join(SCRIPT_DIR, 'AudioResources')
+TARGET_NAME   = 'Runner'
+TYPES         = %w[morning evening].freeze
 
-def get_tag_for_day(day)
-  MONTHS.find { |m| day >= m[:start] && day <= m[:end] }[:tag]
-rescue
-  nil
+# Day-to-month mapping.
+# The devotion dataset always contains 366 entries (days 1-366).
+# Day 60 = February 29; it is present every year in the dataset (the Dart layer
+# skips it at runtime in non-leap years).  We include it in the audio_feb tag
+# so the resource is available whenever the app requests it.
+MONTH_TAGS = [
+  { tag: 'audio_jan', first: 1,   last: 31  },  # Jan 1  – Jan 31
+  { tag: 'audio_feb', first: 32,  last: 60  },  # Feb 1  – Feb 29
+  { tag: 'audio_mar', first: 61,  last: 91  },  # Mar 1  – Mar 31
+  { tag: 'audio_apr', first: 92,  last: 121 },  # Apr 1  – Apr 30
+  { tag: 'audio_may', first: 122, last: 152 },  # May 1  – May 31
+  { tag: 'audio_jun', first: 153, last: 182 },  # Jun 1  – Jun 30
+  { tag: 'audio_jul', first: 183, last: 213 },  # Jul 1  – Jul 31
+  { tag: 'audio_aug', first: 214, last: 244 },  # Aug 1  – Aug 31
+  { tag: 'audio_sep', first: 245, last: 274 },  # Sep 1  – Sep 30
+  { tag: 'audio_oct', first: 275, last: 305 },  # Oct 1  – Oct 31
+  { tag: 'audio_nov', first: 306, last: 335 },  # Nov 1  – Nov 30
+  { tag: 'audio_dec', first: 336, last: 366 },  # Dec 1  – Dec 31
+].freeze
+
+ALL_TAG_NAMES = MONTH_TAGS.map { |m| m[:tag] }.freeze
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+def tag_for_day(day)
+  entry = MONTH_TAGS.find { |m| day >= m[:first] && day <= m[:last] }
+  raise "Day #{day} falls outside every month boundary (1-366)" unless entry
+  entry[:tag]
 end
 
-# 1. Open Project
-project = Xcodeproj::Project.open(project_path)
-target = project.targets.find { |t| t.name == target_name }
+def parse_day(filename)
+  m = filename.match(/\A(\d{3})\.mp3\z/i)
+  raise "Cannot parse day number from filename: #{filename}" unless m
+  m[1].to_i
+end
 
-# 2. Create or find the AudioResources group in Xcode
-group = project.main_group[resource_group_name] || project.main_group.new_group(resource_group_name)
+# ---------------------------------------------------------------------------
+# 1. Validate source audio
+# ---------------------------------------------------------------------------
 
-puts "Mapping audio files to ODR tags..."
+puts '=== iOS On-Demand Resources Setup ==='
+puts
 
-# 3. Iterate through morning and evening folders
-['morning', 'evening'].each do |subfolder|
-  dir_path = File.join(audio_source_dir, subfolder)
-  next unless Dir.exist?(dir_path)
-
-  Dir.glob("#{dir_path}/*.mp3").each do |file_path|
-    filename = File.basename(file_path)
-    day_number = filename.scan(/\d+/).first.to_i
-    tag = get_tag_for_day(day_number)
-
-    next unless tag
-
-    # Create reference in Xcode group
-    file_ref = group.files.find { |f| f.path == file_path } || group.new_file(file_path)
-    
-    # Ensure it's in the Resources Build Phase
-    unless target.resources_build_phase.files_references.include?(file_ref)
-      build_file = target.add_resources([file_ref])
-    end
-
-    # Apply ODR Tag
-    # This adds the tag to the "On-Demand Resource Tags" attribute in the file's build settings
-    target.resources_build_phase.files.each do |bf|
-      if bf.file_ref.path == file_ref.path
-        bf.settings ||= {}
-        bf.settings['ASSET_TAGS'] = [tag]
-      end
-    end
+TYPES.each do |type|
+  dir = File.join(AUDIO_SOURCE, type)
+  unless File.directory?(dir)
+    abort "ERROR: Source directory missing: #{dir}\n" \
+          "       Ensure assets/audio/morning/ and assets/audio/evening/ exist."
   end
 end
 
-# 4. Save Project
+# ---------------------------------------------------------------------------
+# 2. Copy audio files into ios/AudioResources/
+# ---------------------------------------------------------------------------
+
+puts "Copying audio files to #{AUDIO_DEST} ..."
+FileUtils.rm_rf(AUDIO_DEST)
+
+TYPES.each do |type|
+  src  = File.join(AUDIO_SOURCE, type)
+  dest = File.join(AUDIO_DEST, type)
+  FileUtils.mkdir_p(dest)
+
+  mp3s = Dir.glob(File.join(src, '*.mp3')).sort
+  abort "ERROR: No MP3 files in #{src}" if mp3s.empty?
+
+  FileUtils.cp(mp3s, dest)
+  puts "  #{type}/: #{mp3s.length} files"
+end
+
+# ---------------------------------------------------------------------------
+# 3. Open Xcode project and locate the Runner target
+# ---------------------------------------------------------------------------
+
+puts "Opening #{PROJECT_PATH} ..."
+project = Xcodeproj::Project.open(PROJECT_PATH)
+
+target = project.targets.find { |t| t.name == TARGET_NAME }
+abort "ERROR: Target '#{TARGET_NAME}' not found in project" unless target
+
+resources_phase = target.resources_build_phase
+
+# ---------------------------------------------------------------------------
+# 4. Remove any previous AudioResources group (idempotent re-run)
+# ---------------------------------------------------------------------------
+
+old_group = project.main_group.children.find { |g| g.display_name == 'AudioResources' }
+if old_group
+  puts 'Removing previous AudioResources group ...'
+
+  old_group.recursive_children.each do |child|
+    next unless child.is_a?(Xcodeproj::Project::Object::PBXFileReference)
+    resources_phase.files.dup.each do |bf|
+      resources_phase.remove_build_file(bf) if bf.file_ref == child
+    end
+  end
+
+  old_group.remove_from_project
+end
+
+# ---------------------------------------------------------------------------
+# 5. Create group hierarchy and add every MP3
+# ---------------------------------------------------------------------------
+
+puts 'Adding audio files to Xcode project ...'
+
+# Group path is relative to the project directory (ios/).
+audio_group = project.main_group.new_group('AudioResources', 'AudioResources')
+
+files_added  = 0
+tag_counts   = Hash.new(0)
+
+TYPES.each do |type|
+  type_group = audio_group.new_group(type, type)
+
+  Dir.glob(File.join(AUDIO_DEST, type, '*.mp3')).sort.each do |mp3_path|
+    filename = File.basename(mp3_path)
+    day      = parse_day(filename)
+    tag      = tag_for_day(day)
+
+    file_ref = type_group.new_reference(filename)
+    file_ref.last_known_file_type = 'audio.mpeg3'
+
+    build_file = resources_phase.add_file_reference(file_ref)
+    build_file.settings = { 'ASSET_TAGS' => [tag] }
+
+    files_added += 1
+    tag_counts[tag] += 1
+  end
+end
+
+puts "  #{files_added} files added to Copy Bundle Resources"
+
+# ---------------------------------------------------------------------------
+# 6. Register all ODR tags in project-level KnownAssetTags
+# ---------------------------------------------------------------------------
+
+puts 'Registering ODR tags ...'
+attrs = project.root_object.attributes || {}
+attrs['KnownAssetTags'] = ALL_TAG_NAMES
+project.root_object.attributes = attrs
+
+# ---------------------------------------------------------------------------
+# 7. Save
+# ---------------------------------------------------------------------------
+
 project.save
-puts "Successfully mapped files to ODR tags in Xcode."
+puts
+puts 'Tag distribution:'
+
+MONTH_TAGS.each do |m|
+  count = tag_counts[m[:tag]]
+  days  = m[:last] - m[:first] + 1
+  # Each day has morning + evening, so expected = days * 2
+  puts "  %-12s %3d files  (days %3d–%3d, %2d days)" % [m[:tag], count, m[:first], m[:last], days]
+end
+
+puts
+puts "Total: #{files_added} files across #{ALL_TAG_NAMES.length} ODR tags"
+puts
+puts 'Next steps:'
+puts '  1. Open ios/Runner.xcworkspace in Xcode'
+puts '  2. Build & run to verify resources compile'
+puts '  3. Product > Archive to upload with ODR to App Store Connect'

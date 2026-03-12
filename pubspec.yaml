@@ -93,7 +93,7 @@ flutter:
 # Flutter Launcher Icons configuration
 flutter_launcher_icons:
   android: true
-  ios: false
+  ios: true
   image_path: "color_morning_and_evening.png"
   adaptive_icon_background: "#000000"  # Black background to match your app theme
   adaptive_icon_foreground: "color_morning_and_evening.png"
