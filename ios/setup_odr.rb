@@ -12,7 +12,11 @@
 #   ruby setup_odr.rb
 #
 # What this script does:
-#   1. Copies audio from assets/audio/ into ios/AudioResources/
+#   1. Copies audio from assets/audio/ into ios/AudioResources/ with a type
+#      prefix: morning_001.mp3, evening_001.mp3, etc.  Files are stored flat
+#      (no subdirectories) so Xcode's ODR asset-pack bundling doesn't produce
+#      "Multiple commands produce" collisions between same-numbered morning/
+#      evening files.
 #   2. Adds every MP3 to the Runner target's "Copy Bundle Resources" build phase
 #   3. Tags each file with a monthly ODR tag  (audio_jan … audio_dec)
 #   4. Registers the tags in KnownAssetTags so Xcode recognizes them
@@ -67,7 +71,8 @@ def tag_for_day(day)
 end
 
 def parse_day(filename)
-  m = filename.match(/\A(\d{3})\.mp3\z/i)
+  # Accepts both "042.mp3" (source) and "morning_042.mp3" (prefixed dest).
+  m = filename.match(/(?:\A|_)(\d{3})\.mp3\z/i)
   raise "Cannot parse day number from filename: #{filename}" unless m
   m[1].to_i
 end
@@ -91,19 +96,22 @@ end
 # 2. Copy audio files into ios/AudioResources/
 # ---------------------------------------------------------------------------
 
-puts "Copying audio files to #{AUDIO_DEST} ..."
+puts "Copying audio files to #{AUDIO_DEST} (flat, with type prefix) ..."
 FileUtils.rm_rf(AUDIO_DEST)
+FileUtils.mkdir_p(AUDIO_DEST)
 
 TYPES.each do |type|
   src  = File.join(AUDIO_SOURCE, type)
-  dest = File.join(AUDIO_DEST, type)
-  FileUtils.mkdir_p(dest)
 
   mp3s = Dir.glob(File.join(src, '*.mp3')).sort
   abort "ERROR: No MP3 files in #{src}" if mp3s.empty?
 
-  FileUtils.cp(mp3s, dest)
-  puts "  #{type}/: #{mp3s.length} files"
+  mp3s.each do |mp3_path|
+    orig_name    = File.basename(mp3_path)          # "042.mp3"
+    prefixed_name = "#{type}_#{orig_name}"          # "morning_042.mp3"
+    FileUtils.cp(mp3_path, File.join(AUDIO_DEST, prefixed_name))
+  end
+  puts "  #{type}/: #{mp3s.length} files → #{type}_NNN.mp3"
 end
 
 # ---------------------------------------------------------------------------
@@ -142,29 +150,26 @@ end
 
 puts 'Adding audio files to Xcode project ...'
 
-# Group path is relative to the project directory (ios/).
+# Flat group — no morning/evening sub-groups.  All files are named
+# {type}_{day}.mp3 so there are no basename collisions within an ODR pack.
 audio_group = project.main_group.new_group('AudioResources', 'AudioResources')
 
 files_added  = 0
 tag_counts   = Hash.new(0)
 
-TYPES.each do |type|
-  type_group = audio_group.new_group(type, type)
+Dir.glob(File.join(AUDIO_DEST, '*.mp3')).sort.each do |mp3_path|
+  filename = File.basename(mp3_path)   # "morning_042.mp3"
+  day      = parse_day(filename)
+  tag      = tag_for_day(day)
 
-  Dir.glob(File.join(AUDIO_DEST, type, '*.mp3')).sort.each do |mp3_path|
-    filename = File.basename(mp3_path)
-    day      = parse_day(filename)
-    tag      = tag_for_day(day)
+  file_ref = audio_group.new_reference(filename)
+  file_ref.last_known_file_type = 'audio.mpeg3'
 
-    file_ref = type_group.new_reference(filename)
-    file_ref.last_known_file_type = 'audio.mpeg3'
+  build_file = resources_phase.add_file_reference(file_ref)
+  build_file.settings = { 'ASSET_TAGS' => [tag] }
 
-    build_file = resources_phase.add_file_reference(file_ref)
-    build_file.settings = { 'ASSET_TAGS' => [tag] }
-
-    files_added += 1
-    tag_counts[tag] += 1
-  end
+  files_added += 1
+  tag_counts[tag] += 1
 end
 
 puts "  #{files_added} files added to Copy Bundle Resources"
@@ -189,7 +194,7 @@ puts 'Tag distribution:'
 MONTH_TAGS.each do |m|
   count = tag_counts[m[:tag]]
   days  = m[:last] - m[:first] + 1
-  # Each day has morning + evening, so expected = days * 2
+  # Each day has morning_NNN.mp3 + evening_NNN.mp3 → expected = days * 2
   puts "  %-12s %3d files  (days %3d–%3d, %2d days)" % [m[:tag], count, m[:first], m[:last], days]
 end
 

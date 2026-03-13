@@ -1,2 +1,6 @@
 #include? "Pods/Target Support Files/Pods-Runner/Pods-Runner.release.xcconfig"
 #include "Generated.xcconfig"
+
+// TODO: Set your Apple Developer Team ID before building for a device or submitting to the App Store.
+// Obtain your Team ID from https://developer.apple.com/account -> Membership -> Team ID.
+// DEVELOPMENT_TEAM = XXXXXXXXXX

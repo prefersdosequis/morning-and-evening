@@ -58,11 +58,10 @@ flutter:
   # the material Icons class.
   uses-material-design: true
 
-  # To add assets to your application, add an assets section, like this:
   assets:
     - assets/devotions.json
-    # Note: audio is delivered on Android via Play Asset Delivery (asset pack),
-    # not bundled into the base APK/AAB as Flutter assets.
+    # Audio is delivered at runtime — via Play Asset Delivery on Android and
+    # On-Demand Resources on iOS — not bundled as Flutter assets.
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images
