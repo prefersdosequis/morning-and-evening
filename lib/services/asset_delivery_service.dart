@@ -39,7 +39,9 @@ class AssetDeliveryService {
   }
 
   /// Returns the full file-system path to the given audio file, or null if unavailable.
-  /// [relativePath] e.g. "morning/001.mp3" or "evening/042.mp3"
+  /// [relativePath] must be in "type/NNN.mp3" form, e.g. "morning/001.mp3" or "evening/042.mp3".
+  /// On Android this is appended to the Play Asset Delivery pack root.
+  /// On iOS the Swift handler parses the type and day from this path to resolve the ODR resource.
   ///
   /// On iOS the native layer handles ODR tag fetching and returns the resolved path directly.
   /// On Android the native layer returns the pack root and we append the relative path.

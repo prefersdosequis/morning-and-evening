@@ -140,8 +140,7 @@ class _DevotionPageState extends State<DevotionPage> {
   String _currentDevotionAudioKey() {
     if (_devotions.isEmpty) return '';
     final d = _devotions[_currentPage - 1];
-    // Added "AudioResources/" to the start of the string
-    return 'AudioResources/${d.type}/${d.day.toString().padLeft(3, '0')}.mp3';
+    return '${d.type}/${d.day.toString().padLeft(3, '0')}.mp3';
   }
 
   /// Pause at current position; resume with play.
